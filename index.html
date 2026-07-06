@@ -72,15 +72,17 @@
   <div class="memo" id="memoBox"></div>
 
   <div class="toolbar">
-    <button class="ghost" id="btnAddRows">행 추가(+20)</button>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input id="addRowsCount" type="number" value="5" min="1" max="1000" style="width:50px;">
+      <button class="ghost" id="btnAddRows">행 추가</button>
+    </div>
     <button class="ghost" id="btnTrim">빈 행 정리</button>
     <button class="ghost" id="btnClear">전체 지우기</button>
     <span id="autofill" style="display:none;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line);">
       <span id="prefixLabel" style="font-size:12px;color:var(--sub);font-weight:700;">접두어</span>
       <input id="tbPrefix" list="prefixList" style="width:96px;" placeholder="예: WGB">
       <datalist id="prefixList"></datalist>
-      <button class="ghost" id="btnFillOwn" style="background:#dbeafe;color:#1d4ed8;">자사코드 복사하기</button>
-      <span class="hint" id="fillHint" style="font-size:11px;">체크한 행만 (없으면 전체)</span>
+      <button class="ghost" id="btnFillOwn" style="background:#dbeafe;color:#1d4ed8;">자사코드 채우기</button>
     </span>
     <span class="hint">엑셀 복사 → 첫 칸 클릭 → Ctrl+V. '<span style="color:var(--warn)">*</span>'는 필수.</span>
     <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
@@ -319,19 +321,19 @@ function renderMemo(){
 }
 
 // ===================== UI: 그리드 =====================
-const INIT_ROWS=40;
+const INIT_ROWS=10;
 function buildGrid(){
-  gridData=[]; selectedRows.clear();
+  gridData=[];
   for(let i=0;i<INIT_ROWS;i++) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
   renderGridHead(); renderGridBody(); $("status").textContent="";
 }
 function renderGridHead(){
   const thead=$("grid").querySelector("thead");
-  let h='<tr><th class="rownum"><input type="checkbox" id="selAll" title="전체 선택"> #</th>';
+  let h='<tr><th class="rownum">#</th>';
   if(INPUT_HEADERS.length===0){ h+='<th>입력 컬럼이 없습니다 — 관리에서 설정하세요</th>'; }
   else INPUT_HEADERS.forEach(col=>{
     if(col===OWN){
-      const auto=(CURRENT.ownMode==="same"||CURRENT.ownMode==="prefix")?' <span class="auto">복사하기</span>':'';
+      const auto=(CURRENT.ownMode==="same"||CURRENT.ownMode==="prefix")?' <span class="auto">채우기</span>':'';
       h+='<th>자사상품코드'+auto+'</th>';
     }else{
       const req=(CURRENT.cols[col] && CURRENT.cols[col].required)?' <span class="req">*</span>':'';
@@ -344,7 +346,7 @@ function renderGridBody(){
   const tbody=$("grid").querySelector("tbody");
   let html="";
   gridData.forEach((row,r)=>{
-    html+='<tr><td class="cellno"><input type="checkbox" class="rowsel" data-r="'+r+'"'+(selectedRows.has(r)?' checked':'')+'> '+(r+1)+'</td>';
+    html+='<tr><td class="cellno">'+(r+1)+'</td>';
     if(INPUT_HEADERS.length===0) html+='<td></td>';
     INPUT_HEADERS.forEach((col,ec)=>{
       const v=row[ec]!=null?String(row[ec]):"";
@@ -362,19 +364,9 @@ function pasteTargets(){
 }
 // 입력 이벤트
 $("grid").addEventListener("input",(e)=>{
-  const t=e.target; if(t.tagName!=="INPUT"||t.type==="checkbox")return;
+  const t=e.target; if(t.tagName!=="INPUT")return;
   const r=+t.dataset.r, ec=+t.dataset.ec;
   if(gridData[r]) gridData[r][ec]=t.value;
-});
-// 행 선택 체크박스
-$("grid").addEventListener("change",(e)=>{
-  const t=e.target;
-  if(t.id==="selAll"){
-    if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear();
-    renderGridBody();
-  }else if(t.classList.contains("rowsel")){
-    const r=+t.dataset.r; if(t.checked) selectedRows.add(r); else selectedRows.delete(r);
-  }
 });
 // 붙여넣기 이벤트
 $("grid").addEventListener("paste",(e)=>{
@@ -424,22 +416,25 @@ function fillOwnCodes(){
   const ownEc=INPUT_HEADERS.indexOf(OWN), custEc=INPUT_HEADERS.indexOf(CUST);
   if(ownEc<0||custEc<0) return;
   const prefix=$("tbPrefix").value.trim();
-  const targets = selectedRows.size ? [...selectedRows] : gridData.map((_,i)=>i);
   let n=0;
-  targets.forEach(r=>{
-    if(!gridData[r]) return;
-    const cust=(gridData[r][custEc]||"").trim(); if(!cust) return;
-    gridData[r][ownEc] = (CURRENT.ownMode==="same") ? cust : (prefix ? prefix+cust : cust);
+  gridData.forEach(r=>{
+    if(!r) return;
+    const cust=(r[custEc]||"").trim(); if(!cust) return;
+    r[ownEc] = (CURRENT.ownMode==="same") ? cust : (prefix ? prefix+cust : cust);
     n++;
   });
   renderGridBody();
-  $("status").textContent="✔ 자사코드 "+n+"건 채움"+(selectedRows.size?" (선택 "+selectedRows.size+"행)":"");
+  $("status").textContent="✔ 자사코드 "+n+"건 채움";
 }
 $("tbPrefix").addEventListener("input",(e)=>{ CURRENT.ownPrefix=e.target.value.trim(); saveConfig(CFG); renderInfo(); });
 $("btnFillOwn").onclick=fillOwnCodes;
 
-$("btnAddRows").onclick=()=>{ for(let i=0;i<20;i++) gridData.push(new Array(INPUT_HEADERS.length).fill("")); renderGridBody(); };
-$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>r.some(x=>String(x).trim())); if(!gridData.length) gridData.push(new Array(INPUT_HEADERS.length).fill("")); selectedRows.clear(); renderGridBody(); };
+$("btnAddRows").onclick=()=>{
+  const cnt=Math.max(1, parseInt($("addRowsCount").value)||5);
+  for(let i=0;i<cnt;i++) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+  renderGridBody();
+};
+$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>r.some(x=>String(x).trim())); if(!gridData.length) gridData.push(new Array(INPUT_HEADERS.length).fill("")); renderGridBody(); };
 $("btnClear").onclick=()=>{ buildGrid(); };
 
 // ===================== 생성 =====================
