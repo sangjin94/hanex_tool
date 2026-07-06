@@ -1,0 +1,7 @@
+# 서버(Linux)에서 실행/서빙되는 파일은 LF 유지 (Windows CRLF 방지)
+*.sh   text eol=lf
+*.html text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.conf text eol=lf
+*.md   text eol=lf

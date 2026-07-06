@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상품등록 양식 생성기</title>
+<script src="fflate.js"></script>
+<style>
+  :root{--bg:#f4f6f8;--card:#fff;--line:#e3e8ef;--ink:#1f2937;--sub:#6b7280;
+    --brand:#2563eb;--brand-d:#1d4ed8;--ok:#059669;--warn:#dc2626;--memo:#fffbeb;--memo-b:#f59e0b;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Malgun Gothic','맑은 고딕',system-ui,sans-serif;background:var(--bg);color:var(--ink);}
+  .wrap{max-width:1240px;margin:0 auto;padding:18px 18px 60px;}
+  h1{font-size:20px;margin:0 0 14px;}
+  .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;margin-bottom:12px;}
+  .bar label{font-size:13px;font-weight:700;color:var(--ink);}
+  select,input,textarea{font-family:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:7px 9px;background:#fff;}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  button{cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;font-family:inherit;}
+  .primary{background:var(--brand);color:#fff;} .primary:hover{background:var(--brand-d);}
+  .ok{background:var(--ok);color:#fff;} .ghost{background:#eef2f7;color:var(--ink);} .ghost:hover{background:#e2e8f0;}
+  .danger{background:#fee2e2;color:#b91c1c;}
+  .info{font-size:12px;color:var(--sub);margin-left:auto;}
+  .memo{background:var(--memo);border:1px solid var(--memo-b);border-left:5px solid var(--memo-b);
+    border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:13px;color:#92400e;white-space:pre-wrap;display:none;}
+  .memo b{color:#b45309;}
+  .gridwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;overflow:auto;max-height:56vh;}
+  table{border-collapse:collapse;font-size:13px;}
+  th,td{border:1px solid var(--line);padding:0;}
+  th{background:#f1f5f9;font-weight:700;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2;text-align:left;}
+  th .req{color:var(--warn);}
+  td .cellno{padding:6px 8px;color:#94a3b8;font-size:12px;text-align:right;background:#f8fafc;}
+  th.rownum{background:#e2e8f0;}
+  td input{border:none;border-radius:0;width:150px;padding:6px 8px;font-size:13px;background:transparent;}
+  td input:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#fff;}
+  td input.owncol{background:#f8fafc;}
+  th .auto{font-size:10px;color:#1d4ed8;font-weight:600;background:#dbeafe;padding:1px 5px;border-radius:4px;}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+  .hint{font-size:12px;color:var(--sub);}
+  .status{font-size:13px;font-weight:700;}
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:24px;}
+  .modal{background:#fff;border-radius:14px;width:840px;max-width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  .modal h2{margin:0 0 14px;font-size:17px;}
+  .frow{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+  .frow label{font-size:12px;color:var(--sub);font-weight:700;display:block;margin-bottom:3px;}
+  .coltbl{border:1px solid var(--line);border-radius:8px;max-height:44vh;overflow:auto;margin:8px 0 14px;}
+  .coltbl table{width:100%;font-size:12.5px;}
+  .coltbl th,.coltbl td{padding:4px 6px;}
+  .coltbl th{position:sticky;top:0;}
+  .coltbl input[type=text]{width:130px;}
+  .modal-btns{display:flex;gap:8px;justify-content:flex-end;}
+  .tag{font-size:11px;color:#64748b;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>상품등록 양식 생성기 <span class="tag">gaon 47컬럼 · 공유문자열 호환</span></h1>
+
+  <div class="bar">
+    <label>화주사</label>
+    <select id="shipperSel" style="min-width:220px;"></select>
+    <button class="ghost" id="btnManage">관리 / 컬럼설정</button>
+    <button class="ghost" id="btnNew">+ 새 화주사</button>
+    <button class="ghost" id="btnDup">복제</button>
+    <button class="danger" id="btnDel">삭제</button>
+    <span class="info" id="profInfo"></span>
+  </div>
+
+  <div class="memo" id="memoBox"></div>
+
+  <div class="toolbar">
+    <button class="ghost" id="btnAddRows">행 추가(+20)</button>
+    <button class="ghost" id="btnTrim">빈 행 정리</button>
+    <button class="ghost" id="btnClear">전체 지우기</button>
+    <span id="autofill" style="display:none;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line);">
+      <span id="prefixLabel" style="font-size:12px;color:var(--sub);font-weight:700;">접두어</span>
+      <input id="tbPrefix" list="prefixList" style="width:96px;" placeholder="예: WGB">
+      <datalist id="prefixList"></datalist>
+      <button class="ghost" id="btnFillOwn" style="background:#dbeafe;color:#1d4ed8;">자사코드 복사하기</button>
+      <span class="hint" id="fillHint" style="font-size:11px;">체크한 행만 (없으면 전체)</span>
+    </span>
+    <span class="hint">엑셀 복사 → 첫 칸 클릭 → Ctrl+V. '<span style="color:var(--warn)">*</span>'는 필수.</span>
+    <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+      <span class="status ok" id="status"></span>
+      <button class="ok" id="btnGen">📥 엑셀 파일 생성 (.xlsx)</button>
+    </span>
+  </div>
+
+  <div class="gridwrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<!-- 관리 모달 -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="mTitle">화주사 설정</h2>
+    <div class="frow">
+      <div><label>화주사명</label><input type="text" id="mName" style="width:200px;"></div>
+      <div><label>화주코드 (화주/메이커/매입처/발주처 공통)</label><input type="text" id="mCode" style="width:120px;"></div>
+    </div>
+    <div class="frow">
+      <div><label>자사코드 생성방식</label>
+        <select id="mOwnMode">
+          <option value="same">고객사코드와 동일</option>
+          <option value="prefix">접두어 + 고객사코드</option>
+          <option value="input">표에서 직접입력</option>
+          <option value="seq">기존코드 이어서(준비중)</option>
+        </select>
+      </div>
+      <div id="prefixWrap" style="min-width:200px;"><label>접두어 목록 (여러 개는 쉼표로 구분)</label><input type="text" id="mPrefix" style="width:100%;" placeholder="예: WGB, WG2, WGS"></div>
+      <div style="flex:1;min-width:220px;"><label>메모 / 특이사항</label>
+        <textarea id="mMemo" rows="2" style="width:100%;" placeholder="이 화주사 관련 주의사항 (예: 분류코드 상품마다 다름, 유효일 필수 등)"></textarea>
+      </div>
+    </div>
+    <div class="hint" style="margin-bottom:4px;">컬럼별 설정 — <b>입력</b>=표에 직접입력 / <b>고정값</b>=자동입력 / <b>화주코드연동</b> / <b>미사용</b></div>
+    <div class="coltbl">
+      <table id="colTbl"><thead><tr><th>컬럼</th><th>모드</th><th>고정값</th><th>필수</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="modal-btns">
+      <button class="ghost" id="mCancel">취소</button>
+      <button class="primary" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== 데이터 정의 =====================
+const HEADERS = ["고객사상품코드","자사상품코드","상품명","화주코드","단위","BOX입수","LOT구분",
+"상품바코드","주문단위","판매단가","박스가로","박스세로","박스높이","박스중량","박스바코드",
+"PLT입수","부문","대분류","중분류","소분류","유효일관리여부","유효일수","과면세구분",
+"메이커코드","매입처코드","발주처코드","보관온도","구매담당자","자동입고유무","운영편수",
+"원산지","배면","배단","공급사","PID","UPC","비고","(구)고객사상품코드","단축상품명",
+"(외부)스캔코드","분류","CATEGORY","BRAND","SUB BRAND","SUB BRAND2","점포코드(REF01)","REF02"];
+const HSET = new Set(HEADERS);
+const CODE_COLS = ["화주코드","메이커코드","매입처코드","발주처코드"];
+const CUST = "고객사상품코드", OWN = "자사상품코드";
+const OWN_MODE_LABEL = {same:"고객사코드와 동일",prefix:"접두어 + 고객사코드",input:"표에서 직접입력",seq:"기존코드 이어서(준비중)"};
+const MODE_LABEL = {input:"입력",fixed:"고정값",code:"화주코드연동",skip:"미사용"};
+const LABEL_MODE = Object.fromEntries(Object.entries(MODE_LABEL).map(([k,v])=>[v,k]));
+
+// 모든 화주사 공통 기본 컬럼 세트
+function baseCols(){
+  const c={}; HEADERS.forEach(h=>c[h]={mode:"skip",value:"",required:false});
+  const s=(h,mode,value="",req=false)=>c[h]={mode,value,required:req};
+  s(CUST,"input","",true);
+  s("상품명","input","",true);
+  s("화주코드","code");
+  s("단위","fixed","01");
+  s("BOX입수","input","",true);
+  s("주문단위","input");
+  s("PLT입수","input");
+  s("부문","fixed");
+  s("대분류","fixed");
+  s("중분류","fixed");
+  s("소분류","fixed");
+  s("유효일관리여부","fixed","1");
+  s("메이커코드","code");
+  s("매입처코드","code");
+  s("발주처코드","code");
+  s("보관온도","fixed","0");
+  s("구매담당자","fixed");
+  return c;
+}
+function williamProfile(){
+  const c=baseCols();
+  c["부문"].value="8"; c["대분류"].value="8"; c["중분류"].value="82"; c["소분류"].value="809";
+  c["구매담당자"].value="2508038";
+  return {name:"윌리엄그랜트앤선즈",code:"2155",ownPrefix:"WGB",prefixes:["WGB"],ownMode:"prefix",memo:"",cols:c};
+}
+
+// ===================== 설정 저장/로드 =====================
+const LS_KEY="sangpum_config_v2";
+function loadConfig(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(raw){
+      const cfg=JSON.parse(raw);
+      if(cfg.shippers&&cfg.shippers.length){
+        cfg.shippers.forEach(sp=>{ // 누락 보정
+          const base=baseCols(); Object.assign(base, sp.cols||{}); sp.cols=base;
+          sp.code=sp.code||""; sp.ownPrefix=sp.ownPrefix||""; sp.memo=sp.memo||"";
+          if(!sp.ownMode) sp.ownMode="same";
+          if(!Array.isArray(sp.prefixes)) sp.prefixes = sp.ownPrefix ? [sp.ownPrefix] : [];
+        });
+        return cfg;
+      }
+    }
+  }catch(e){}
+  const cfg={shippers:[williamProfile()],selected:"윌리엄그랜트앤선즈"};
+  saveConfig(cfg); return cfg;
+}
+function saveConfig(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+
+let CFG=loadConfig();
+let CURRENT=null;
+let INPUT_HEADERS=[];   // 그리드 컬럼(자사코드 포함, 엑셀순서)
+let gridData=[];        // 각 행: INPUT_HEADERS 순서의 값 배열
+let selectedRows=new Set();  // 복사하기 대상 선택 행
+
+function profByName(n){ return CFG.shippers.find(s=>s.name===n); }
+function inputColumns(p){   // 그리드에 표시/편집하는 컬럼 (자사상품코드 항상 포함, 엑셀순서)
+  const res=[];
+  for(const h of HEADERS){
+    if(h===OWN) res.push(h);   // 자사상품코드: 편집 가능 + 복사하기 버튼으로 채움
+    else if(p.cols[h] && p.cols[h].mode==="input") res.push(h);
+  }
+  return res;
+}
+// 자사코드 자동 규칙값 (복사하기·생성 시 빈칸 자동채움에 사용)
+function computeOwn(p, cust){
+  cust=(cust||"").trim();
+  if(p.ownMode==="same") return cust;
+  if(p.ownMode==="prefix") return cust?((p.ownPrefix||"")+cust):"";
+  return "";  // input(직접입력) / seq(준비중)
+}
+
+// ===================== 47컬럼 배열 생성 =====================
+function buildArrays(p, inputHeaders, rows){
+  const cols=p.cols, prefix=p.ownPrefix||"", code=p.code||"", ownMode=p.ownMode||"prefix";
+  const out=[], errors=[];
+  rows.forEach((r,ri)=>{
+    const vals={};
+    inputHeaders.forEach((h,i)=>{ vals[h]=(r[i]!=null?String(r[i]).trim():""); });
+    if(!Object.values(vals).some(v=>v!=="")) return; // 빈 행
+    const missing=inputHeaders.filter(h=>h!==OWN && cols[h].required && !vals[h]);
+    if(missing.length){ errors.push((ri+1)+"행: "+missing.join(", ")+" 누락"); return; }
+    const resolve=(h)=>{
+      const m=cols[h].mode;
+      if(m==="input") return vals[h]||"";
+      if(m==="fixed") return cols[h].value||"";
+      if(m==="code") return code;
+      return "";
+    };
+    const cust=resolve(CUST);
+    const arr=new Array(HEADERS.length).fill(null);
+    HEADERS.forEach((h,ci)=>{
+      let v;
+      if(h===OWN){
+        // 표에 입력한 자사코드 우선, 비어있으면 규칙(접두어+고객사코드 등)으로 자동 채움
+        const typed=(vals[OWN]||"").trim();
+        v = typed!=="" ? typed : computeOwn(p, cust);
+      } else v=resolve(h);
+      arr[ci]=(v!=null&&String(v).trim()!=="")?String(v).trim():null;
+    });
+    out.push(arr);
+  });
+  return {rows:out, errors};
+}
+
+// ===================== xlsx 생성 (공유문자열 · gaon 호환) =====================
+function colLetter(n){let s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+function xmlEsc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+const CT='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>';
+const RELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+const WB='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>';
+const WBRELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>';
+const STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="맑은 고딕"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+function writeXlsx(headers, dataRows){
+  const ncol=headers.length;
+  const sst=new Map(); const order=[]; let total=0;
+  const sid=(v)=>{ total++; if(sst.has(v)) return sst.get(v); const i=order.length; sst.set(v,i); order.push(v); return i; };
+  const cell=(c1,r1,val)=>{
+    const ref=colLetter(c1)+r1;
+    if(val==null||String(val)==="") return '<c r="'+ref+'" s="1"/>';
+    return '<c r="'+ref+'" s="1" t="s"><v>'+sid(String(val))+'</v></c>';
+  };
+  const rowsXml=[];
+  rowsXml.push('<row r="1" spans="1:'+ncol+'">'+headers.map((h,c)=>cell(c+1,1,h)).join("")+'</row>');
+  dataRows.forEach((arr,ri)=>{
+    const r1=ri+2;
+    rowsXml.push('<row r="'+r1+'" spans="1:'+ncol+'">'+headers.map((h,c)=>cell(c+1,r1,arr[c]!==undefined?arr[c]:null)).join("")+'</row>');
+  });
+  const lastRef=colLetter(ncol)+(dataRows.length+1);
+  const sheetXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:'+lastRef+'"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData>'+rowsXml.join("")+'</sheetData></worksheet>';
+  const si=order.map(v=>{
+    const t=xmlEsc(v);
+    return (v!==v.trim()||v.indexOf("\n")>=0)?'<si><t xml:space="preserve">'+t+'</t></si>':'<si><t>'+t+'</t></si>';
+  }).join("");
+  const sharedXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+total+'" uniqueCount="'+order.length+'">'+si+'</sst>';
+
+  const enc=new TextEncoder();
+  const files={
+    "[Content_Types].xml":enc.encode(CT),
+    "_rels/.rels":enc.encode(RELS),
+    "xl/workbook.xml":enc.encode(WB),
+    "xl/_rels/workbook.xml.rels":enc.encode(WBRELS),
+    "xl/styles.xml":enc.encode(STYLES),
+    "xl/sharedStrings.xml":enc.encode(sharedXml),
+    "xl/worksheets/sheet1.xml":enc.encode(sheetXml),
+  };
+  return fflate.zipSync(files,{level:6});
+}
+
+// ===================== UI: 화주사 =====================
+const $=(id)=>document.getElementById(id);
+function refreshShipperSelect(){
+  const sel=$("shipperSel"); sel.innerHTML="";
+  CFG.shippers.forEach(s=>{ const o=document.createElement("option"); o.value=s.name; o.textContent=s.name; sel.appendChild(o); });
+  sel.value=CURRENT?CURRENT.name:(CFG.selected||CFG.shippers[0].name);
+}
+function selectShipper(name){
+  CURRENT=profByName(name)||CFG.shippers[0];
+  CFG.selected=CURRENT.name; saveConfig(CFG);
+  INPUT_HEADERS=inputColumns(CURRENT);
+  renderMemo(); renderInfo(); refreshAutofill(); buildGrid();
+}
+function renderInfo(){
+  const c=CURRENT, own=OWN_MODE_LABEL[c.ownMode]||"";
+  $("profInfo").textContent="화주코드 "+(c.code||"-")+" · 자사코드: "+own+(c.ownMode==="prefix"?(" ("+(c.ownPrefix||"")+")"):"")+" · 입력 "+INPUT_HEADERS.length+"컬럼";
+}
+function renderMemo(){
+  const box=$("memoBox");
+  if(CURRENT.memo && CURRENT.memo.trim()){ box.style.display="block"; box.innerHTML="<b>📌 특이사항</b>  "+xmlEsc(CURRENT.memo); }
+  else box.style.display="none";
+}
+
+// ===================== UI: 그리드 =====================
+const INIT_ROWS=40;
+function buildGrid(){
+  gridData=[]; selectedRows.clear();
+  for(let i=0;i<INIT_ROWS;i++) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+  renderGridHead(); renderGridBody(); $("status").textContent="";
+}
+function renderGridHead(){
+  const thead=$("grid").querySelector("thead");
+  let h='<tr><th class="rownum"><input type="checkbox" id="selAll" title="전체 선택"> #</th>';
+  if(INPUT_HEADERS.length===0){ h+='<th>입력 컬럼이 없습니다 — 관리에서 설정하세요</th>'; }
+  else INPUT_HEADERS.forEach(col=>{
+    if(col===OWN){
+      const auto=(CURRENT.ownMode==="same"||CURRENT.ownMode==="prefix")?' <span class="auto">복사하기</span>':'';
+      h+='<th>자사상품코드'+auto+'</th>';
+    }else{
+      const req=(CURRENT.cols[col] && CURRENT.cols[col].required)?' <span class="req">*</span>':'';
+      h+='<th>'+col+req+'</th>';
+    }
+  });
+  h+='</tr>'; thead.innerHTML=h;
+}
+function renderGridBody(){
+  const tbody=$("grid").querySelector("tbody");
+  let html="";
+  gridData.forEach((row,r)=>{
+    html+='<tr><td class="cellno"><input type="checkbox" class="rowsel" data-r="'+r+'"'+(selectedRows.has(r)?' checked':'')+'> '+(r+1)+'</td>';
+    if(INPUT_HEADERS.length===0) html+='<td></td>';
+    INPUT_HEADERS.forEach((col,ec)=>{
+      const v=row[ec]!=null?String(row[ec]):"";
+      const cls=(col===OWN)?' class="owncol"':'';
+      html+='<td><input'+cls+' data-r="'+r+'" data-ec="'+ec+'" value="'+v.replace(/"/g,"&quot;")+'"></td>';
+    });
+    html+='</tr>';
+  });
+  tbody.innerHTML=html;
+}
+// 붙여넣기 대상 컬럼: 자동 방식이면 자사코드는 건너뜀(엑셀엔 보통 자사코드 열이 없으므로)
+function pasteTargets(){
+  const skipOwn=(CURRENT.ownMode==="same"||CURRENT.ownMode==="prefix"||CURRENT.ownMode==="seq");
+  return INPUT_HEADERS.map((h,ec)=>({h,ec})).filter(o=>!(o.h===OWN && skipOwn));
+}
+// 입력 이벤트
+$("grid").addEventListener("input",(e)=>{
+  const t=e.target; if(t.tagName!=="INPUT"||t.type==="checkbox")return;
+  const r=+t.dataset.r, ec=+t.dataset.ec;
+  if(gridData[r]) gridData[r][ec]=t.value;
+});
+// 행 선택 체크박스
+$("grid").addEventListener("change",(e)=>{
+  const t=e.target;
+  if(t.id==="selAll"){
+    if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear();
+    renderGridBody();
+  }else if(t.classList.contains("rowsel")){
+    const r=+t.dataset.r; if(t.checked) selectedRows.add(r); else selectedRows.delete(r);
+  }
+});
+// 붙여넣기 이벤트
+$("grid").addEventListener("paste",(e)=>{
+  const t=e.target; if(t.tagName!=="INPUT")return;
+  const text=(e.clipboardData||window.clipboardData).getData("text");
+  if(text.indexOf("\t")<0 && text.indexOf("\n")<0) return; // 단일 셀은 기본 처리
+  e.preventDefault();
+  const targets=pasteTargets();
+  const startR=+t.dataset.r;
+  const startEc=+t.dataset.ec;
+  let startIdx=targets.findIndex(o=>o.ec===startEc); if(startIdx<0) startIdx=0;
+  let lines=text.replace(/\r/g,"").split("\n");
+  if(lines.length>1 && lines[lines.length-1]==="") lines.pop();
+  if(lines.length>0){   // 헤더행 자동 감지
+    const first=lines[0].split("\t").map(x=>x.trim());
+    if(first.some(x=>HSET.has(x))) lines=lines.slice(1);
+  }
+  lines.forEach((line,i)=>{
+    const cells=line.split("\t");
+    cells.forEach((val,j)=>{
+      const tgt=targets[startIdx+j]; if(!tgt) return;
+      const rr=startR+i;
+      while(gridData.length<=rr) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+      gridData[rr][tgt.ec]=val.trim();
+    });
+  });
+  renderGridBody();
+  $("status").textContent="";
+});
+
+// 자사코드 복사하기 (접두어+고객사코드 / 동일)
+function refreshAutofill(){
+  const af=$("autofill"), m=CURRENT.ownMode;
+  if(m==="prefix"){
+    af.style.display="flex"; $("prefixLabel").style.display="inline"; $("tbPrefix").style.display="inline";
+    $("prefixList").innerHTML=(CURRENT.prefixes||[]).map(p=>'<option value="'+p.replace(/"/g,"&quot;")+'">').join("");
+    $("tbPrefix").value=CURRENT.ownPrefix||(CURRENT.prefixes&&CURRENT.prefixes[0])||"";
+    $("btnFillOwn").textContent="자사코드 채우기";
+    $("fillHint").style.display="inline";
+  }else if(m==="same"){
+    af.style.display="flex"; $("prefixLabel").style.display="none"; $("tbPrefix").style.display="none"; $("prefixList").innerHTML="";
+    $("btnFillOwn").textContent="자사코드 채우기 (고객사코드와 동일)";
+    $("fillHint").style.display="inline";
+  }else{ af.style.display="none"; }  // input(직접입력) / seq(준비중)
+}
+function fillOwnCodes(){
+  const ownEc=INPUT_HEADERS.indexOf(OWN), custEc=INPUT_HEADERS.indexOf(CUST);
+  if(ownEc<0||custEc<0) return;
+  const prefix=$("tbPrefix").value.trim();
+  const targets = selectedRows.size ? [...selectedRows] : gridData.map((_,i)=>i);
+  let n=0;
+  targets.forEach(r=>{
+    if(!gridData[r]) return;
+    const cust=(gridData[r][custEc]||"").trim(); if(!cust) return;
+    gridData[r][ownEc] = (CURRENT.ownMode==="same") ? cust : (prefix ? prefix+cust : cust);
+    n++;
+  });
+  renderGridBody();
+  $("status").textContent="✔ 자사코드 "+n+"건 채움"+(selectedRows.size?" (선택 "+selectedRows.size+"행)":"");
+}
+$("tbPrefix").addEventListener("input",(e)=>{ CURRENT.ownPrefix=e.target.value.trim(); saveConfig(CFG); renderInfo(); });
+$("btnFillOwn").onclick=fillOwnCodes;
+
+$("btnAddRows").onclick=()=>{ for(let i=0;i<20;i++) gridData.push(new Array(INPUT_HEADERS.length).fill("")); renderGridBody(); };
+$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>r.some(x=>String(x).trim())); if(!gridData.length) gridData.push(new Array(INPUT_HEADERS.length).fill("")); selectedRows.clear(); renderGridBody(); };
+$("btnClear").onclick=()=>{ buildGrid(); };
+
+// ===================== 생성 =====================
+$("btnGen").onclick=()=>{
+  if(INPUT_HEADERS.length===0){ alert("입력 컬럼이 없습니다. 관리에서 입력 컬럼을 지정하세요."); return; }
+  const {rows,errors}=buildArrays(CURRENT, INPUT_HEADERS, gridData);
+  if(errors.length){ alert("필수값 누락:\n\n"+errors.slice(0,20).join("\n")); return; }
+  if(!rows.length){ alert("생성할 데이터가 없습니다."); return; }
+  const bytes=writeXlsx(HEADERS, rows);
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  const fname="상품등록_"+CURRENT.name+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())+".xlsx";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  $("status").textContent="✔ 생성 완료 ("+rows.length+"건)";
+};
+
+// ===================== 관리 모달 =====================
+let editing=null;
+function openEditor(profile){
+  editing=profile;
+  $("mTitle").textContent="화주사 설정 - "+profile.name;
+  $("mName").value=profile.name;
+  $("mCode").value=profile.code||"";
+  $("mOwnMode").value=profile.ownMode||"same";
+  $("mPrefix").value=(profile.prefixes&&profile.prefixes.length?profile.prefixes:(profile.ownPrefix?[profile.ownPrefix]:[])).join(", ");
+  $("mMemo").value=profile.memo||"";
+  syncPrefix();
+  // 컬럼 표
+  const tb=$("colTbl").querySelector("tbody"); tb.innerHTML="";
+  HEADERS.forEach(h=>{
+    if(h===OWN) return; // 자사코드는 상단 방식으로 관리
+    const cfg=profile.cols[h]||{mode:"skip",value:"",required:false};
+    let opts;
+    if(CODE_COLS.includes(h)) opts=["화주코드연동","고정값","미사용"];
+    else if(h===CUST) opts=["입력","고정값"];
+    else opts=["입력","고정값","미사용"];
+    let cur=MODE_LABEL[cfg.mode]||"미사용"; if(!opts.includes(cur)) cur=opts[0];
+    const tr=document.createElement("tr");
+    tr.innerHTML='<td>'+h+'</td>'+
+      '<td><select data-h="'+h+'" class="cMode">'+opts.map(o=>'<option'+(o===cur?' selected':'')+'>'+o+'</option>').join("")+'</select></td>'+
+      '<td><input type="text" class="cVal" data-h="'+h+'" value="'+(cfg.value||"").replace(/"/g,"&quot;")+'"></td>'+
+      '<td style="text-align:center;"><input type="checkbox" class="cReq" data-h="'+h+'"'+(cfg.required?" checked":"")+'></td>';
+    tb.appendChild(tr);
+  });
+  $("overlay").style.display="flex";
+}
+function syncPrefix(){ $("prefixWrap").style.display=($("mOwnMode").value==="prefix")?"block":"none"; }
+$("mOwnMode").onchange=syncPrefix;
+$("mCancel").onclick=()=>{ $("overlay").style.display="none"; editing=null; };
+$("mSave").onclick=()=>{
+  const name=$("mName").value.trim();
+  if(!name){ alert("화주사명을 입력하세요."); return; }
+  if(CFG.shippers.some(s=>s!==editing && s.name===name)){ alert("같은 이름의 화주사가 있습니다."); return; }
+  const cols={}; HEADERS.forEach(h=>cols[h]={mode:"skip",value:"",required:false});
+  $("colTbl").querySelectorAll(".cMode").forEach(sel=>{
+    const h=sel.dataset.h;
+    const val=$("colTbl").querySelector('.cVal[data-h="'+CSS.escape(h)+'"]').value.trim();
+    const req=$("colTbl").querySelector('.cReq[data-h="'+CSS.escape(h)+'"]').checked;
+    cols[h]={mode:LABEL_MODE[sel.value]||"skip",value:val,required:req};
+  });
+  const ownMode=$("mOwnMode").value;
+  cols[OWN]={mode:ownMode==="input"?"input":"skip",value:"",required:false};
+  const prefs=$("mPrefix").value.split(",").map(s=>s.trim()).filter(Boolean);
+  editing.name=name; editing.code=$("mCode").value.trim();
+  editing.ownMode=ownMode; editing.prefixes=prefs; editing.ownPrefix=prefs[0]||"";
+  editing.memo=$("mMemo").value;
+  editing.cols=cols;
+  saveConfig(CFG);
+  $("overlay").style.display="none";
+  CURRENT=editing;
+  refreshShipperSelect(); selectShipper(editing.name);
+  editing=null;
+};
+
+$("btnManage").onclick=()=>openEditor(CURRENT);
+$("btnNew").onclick=()=>{
+  const cols=baseCols();
+  const prof={name:uniqueName("새 화주사"),code:"",ownPrefix:"",prefixes:[],ownMode:"same",memo:"",cols};
+  CFG.shippers.push(prof); saveConfig(CFG); openEditor(prof);
+};
+$("btnDup").onclick=()=>{
+  const prof=JSON.parse(JSON.stringify(CURRENT)); prof.name=uniqueName(CURRENT.name+" 복사");
+  CFG.shippers.push(prof); saveConfig(CFG); openEditor(prof);
+};
+$("btnDel").onclick=()=>{
+  if(CFG.shippers.length<=1){ alert("최소 1개 화주사는 있어야 합니다."); return; }
+  if(!confirm("'"+CURRENT.name+"' 화주사를 삭제할까요?")) return;
+  CFG.shippers=CFG.shippers.filter(s=>s!==CURRENT); saveConfig(CFG);
+  CURRENT=CFG.shippers[0]; refreshShipperSelect(); selectShipper(CURRENT.name);
+};
+function uniqueName(base){
+  const names=new Set(CFG.shippers.map(s=>s.name));
+  if(!names.has(base)) return base;
+  let i=2; while(names.has(base+" "+i)) i++; return base+" "+i;
+}
+
+$("shipperSel").onchange=(e)=>selectShipper(e.target.value);
+
+// ===================== 시작 =====================
+CURRENT=profByName(CFG.selected)||CFG.shippers[0];
+refreshShipperSelect();
+selectShipper(CURRENT.name);
+</script>
+</body>
+</html>
