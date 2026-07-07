@@ -405,6 +405,24 @@ function defaultCfg(){
 function loadCfg(){ try{const r=JSON.parse(localStorage.getItem(SKEY)); if(r&&r.shippers&&Object.keys(r.shippers).length)return r;}catch(e){} return defaultCfg(); }
 function saveCfg(){ localStorage.setItem(SKEY, JSON.stringify(CFG)); }
 let CFG=loadCfg();
+// 화주사는 서버 저장(모든 PC 공통). 오프라인/로컬파일이면 localStorage 캐시 사용.
+async function fetchShippers(){
+  try{
+    const r=await fetch("/api/shippers",{cache:"no-store"}); if(!r.ok)throw 0;
+    const s=await r.json();
+    if(s && typeof s==="object" && !Array.isArray(s) && Object.keys(s).length){
+      CFG.shippers=s;
+      if(!CFG.shippers[CFG.selected]) CFG.selected=Object.keys(s)[0];
+      saveCfg(); refreshShipperSelect(); renderFixed();
+    }
+  }catch(e){}
+}
+async function saveShippers(){
+  saveCfg();
+  try{ const r=await fetch("/api/shippers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(CFG.shippers)});
+       const j=await r.json(); return !!j.ok; }
+  catch(e){ return false; }
+}
 
 // ===================== 그리드 상태 =====================
 const $=(id)=>document.getElementById(id);
@@ -590,22 +608,27 @@ function openEditor(name){
   $("overlay").style.display="flex"; $("mName").focus();
 }
 $("mCancel").onclick=()=>{ $("overlay").style.display="none"; editingName=null; };
-$("mSave").onclick=()=>{
+$("mSave").onclick=async ()=>{
   const name=$("mName").value.trim(); if(!name){ alert("화주사명을 입력하세요."); return; }
   if(name!==editingName && CFG.shippers[name]){ alert("같은 이름의 화주사가 있습니다."); return; }
   if(editingName && editingName!==name) delete CFG.shippers[editingName];
   CFG.shippers[name]={ 화주코드:$("mCode").value.trim(), 매출처코드:$("mSales").value.trim(), 편번호:$("mPyeon").value.trim(), 가온시장코드:$("mMarket").value.trim(), 구분:$("mGubun").value };
-  CFG.selected=name; saveCfg();
+  CFG.selected=name;
   $("overlay").style.display="none"; editingName=null;
   refreshShipperSelect(); renderFixed();
+  const ok=await saveShippers();
+  status(ok?("화주사 '"+name+"' 저장됨 (모든 PC 공통)"):("화주사 '"+name+"' 저장(이 PC만) — 서버 반영 실패"));
 };
 $("btnManage").onclick=()=>openEditor(CFG.selected);
 $("btnNew").onclick=()=>openEditor(null);
-$("btnDel").onclick=()=>{
+$("btnDel").onclick=async ()=>{
   if(Object.keys(CFG.shippers).length<=1){ alert("최소 1개 화주사는 있어야 합니다."); return; }
-  if(!confirm("'"+CFG.selected+"' 화주사를 삭제할까요?"))return;
-  delete CFG.shippers[CFG.selected]; CFG.selected=Object.keys(CFG.shippers)[0]; saveCfg();
+  const nm=CFG.selected;
+  if(!confirm("'"+nm+"' 화주사를 삭제할까요? (모든 PC에서 삭제됩니다)"))return;
+  delete CFG.shippers[nm]; CFG.selected=Object.keys(CFG.shippers)[0];
   refreshShipperSelect(); renderFixed();
+  const ok=await saveShippers();
+  status(ok?("'"+nm+"' 삭제됨 (모든 PC 공통)"):("'"+nm+"' 삭제(이 PC만) — 서버 반영 실패"));
 };
 $("shipperSel").onchange=(e)=>selectShipper(e.target.value);
 
@@ -849,6 +872,7 @@ $("maSave").onclick=async ()=>{
 refreshShipperSelect();
 buildGrid();
 renderFixed();
+fetchShippers();
 fetchMapping();
 </script>
 </body>

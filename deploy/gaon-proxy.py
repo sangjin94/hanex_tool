@@ -26,9 +26,33 @@ LISTEN = ("127.0.0.1", 8080)
 # 통합매핑 데이터 저장 위치 (git repo 밖 · 재배포에도 유지)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # hanex_tool
 DEFAULT_MAP = os.path.join(BASE_DIR, "data", "mapping.default.json")
+DEFAULT_SHIPPERS = os.path.join(BASE_DIR, "data", "shippers.default.json")
 DATA_DIR = os.path.join(os.path.expanduser("~"), "hanex_data")
 MAP_PATH = os.path.join(DATA_DIR, "mapping.json")
+SHIPPERS_PATH = os.path.join(DATA_DIR, "shippers.json")
 MAX_UPLOAD = 30 * 1024 * 1024  # 30MB
+
+
+def read_shippers_bytes():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if not os.path.exists(SHIPPERS_PATH) and os.path.exists(DEFAULT_SHIPPERS):
+        shutil.copyfile(DEFAULT_SHIPPERS, SHIPPERS_PATH)
+    if os.path.exists(SHIPPERS_PATH):
+        with open(SHIPPERS_PATH, "rb") as f:
+            return f.read()
+    return b"{}"
+
+
+def write_shippers_bytes(raw):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    obj = json.loads(raw)
+    if not isinstance(obj, dict):
+        raise ValueError("화주사 데이터는 객체여야 합니다")
+    tmp = SHIPPERS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, SHIPPERS_PATH)
+    return len(obj)
 
 
 def read_mapping_bytes():
@@ -190,6 +214,17 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(200, {"ok": False, "error": "저장 실패: " + str(e)})
             return
+        if path == "/api/shippers":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                if n <= 0 or n > MAX_UPLOAD:
+                    self._send(400, {"ok": False, "error": "크기 오류"})
+                    return
+                cnt = write_shippers_bytes(self.rfile.read(n))
+                self._send(200, {"ok": True, "count": cnt})
+            except Exception as e:
+                self._send(200, {"ok": False, "error": "저장 실패: " + str(e)})
+            return
         if path != "/api/gaon/maxcode":
             self._send(404, {"ok": False, "error": "not found"})
             return
@@ -222,6 +257,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/mapping":
             try:
                 self._send_raw(200, read_mapping_bytes())
+            except Exception as e:
+                self._send(200, {"ok": False, "error": str(e)})
+        elif path == "/api/shippers":
+            try:
+                self._send_raw(200, read_shippers_bytes())
             except Exception as e:
                 self._send(200, {"ok": False, "error": str(e)})
         else:
