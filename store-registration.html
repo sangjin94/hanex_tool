@@ -10,7 +10,7 @@
     --brand:#2563eb;--brand-d:#1d4ed8;--ok:#059669;--warn:#dc2626;--memo:#fffbeb;--memo-b:#f59e0b;}
   *{box-sizing:border-box;}
   body{margin:0;font-family:'Malgun Gothic','맑은 고딕',system-ui,sans-serif;background:var(--bg);color:var(--ink);}
-  .wrap{max-width:1500px;margin:0 auto;padding:14px 18px 60px;}
+  .wrap{max-width:min(2100px,98vw);margin:0 auto;padding:14px 14px 60px;}
   h1{font-size:20px;margin:0 0 10px;display:flex;align-items:center;gap:10px;}
   .nav{display:flex;gap:6px;margin-bottom:12px;}
   .nav a{text-decoration:none;font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--sub);}
@@ -36,7 +36,10 @@
   th,td{border:1px solid var(--line);padding:0;}
   th{background:#f1f5f9;font-weight:700;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2;text-align:left;}
   th.rownum{background:#e2e8f0;}
-  td.cellno{padding:6px 8px;color:#94a3b8;font-size:12px;text-align:right;background:#f8fafc;}
+  th.rownum label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+  td.cellno{padding:0;color:#94a3b8;font-size:12px;background:#f8fafc;}
+  td.cellno label.rowselL{display:flex;align-items:center;gap:7px;justify-content:flex-end;cursor:pointer;padding:8px 10px;}
+  .rowsel,#selAll{width:18px;height:18px;cursor:pointer;flex:none;accent-color:var(--brand);}
   td input{border:none;border-radius:0;width:140px;padding:6px 8px;font-size:13px;background:transparent;}
   td input:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#fff;}
   td input.parse{background:#f8fafc;color:#475569;} td input.code{background:#fffdf5;}
@@ -429,7 +432,7 @@ function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); }
 
 // ---- 그리드 렌더 ----
 function renderHead(){
-  let h='<tr><th class="rownum"><input type="checkbox" id="selAll" title="전체 선택"> #</th>';
+  let h='<tr><th class="rownum"><label><input type="checkbox" id="selAll" title="전체 선택"> #</label></th>';
   FIELDS.forEach(f=>{
     let badge=""; if(PARSE_F.has(f))badge=' <span class="p">파싱</span>'; else if(CODE_F.has(f))badge=' <span class="c">코드</span>';
     h+='<th>'+f+badge+'</th>';
@@ -439,7 +442,7 @@ function renderHead(){
 function renderBody(){
   let html="";
   gridData.forEach((row,r)=>{
-    html+='<tr><td class="cellno"><input type="checkbox" class="rowsel" data-r="'+r+'"'+(selectedRows.has(r)?' checked':'')+'> '+(r+1)+'</td>';
+    html+='<tr><td class="cellno"><label class="rowselL"><input type="checkbox" class="rowsel" data-r="'+r+'"'+(selectedRows.has(r)?' checked':'')+'> '+(r+1)+'</label></td>';
     FIELDS.forEach(f=>{
       const v=(row[f]!=null?String(row[f]):"").replace(/"/g,"&quot;");
       const cls=PARSE_F.has(f)?' class="parse"':(CODE_F.has(f)?' class="code"':'');
