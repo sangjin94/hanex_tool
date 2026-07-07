@@ -98,7 +98,58 @@
     </span>
   </div>
 
+  <div class="toolbar" style="margin-top:-4px;">
+    <button class="primary" id="btnMap">🗺️ 맵핑 실행 (지역/창고/지구)</button>
+    <button class="ghost" id="btnUnmapped">미매핑 행 선택</button>
+    <button class="ghost" id="btnManualMap">수동 매핑</button>
+    <button class="ghost" id="btnMapAdmin">매핑파일 관리</button>
+    <span class="hint" id="mapInfo" style="margin-left:6px;">매핑 데이터 로딩…</span>
+  </div>
+
   <div class="gridwrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<!-- 수동 매핑 모달 -->
+<div class="overlay" id="mmOverlay">
+  <div class="modal" style="width:900px;">
+    <h2>수동 매핑 <span class="tag">체크한 행에 창고/지구코드 적용</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
+      <div><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">시도</label><select id="mmSido" style="width:130px;"></select></div>
+      <div><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">시군구</label><input id="mmSgg" style="width:120px;" placeholder="부분검색"></div>
+      <div><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">읍/면/동</label><input id="mmEup" style="width:120px;" placeholder="부분검색"></div>
+      <button class="ghost" id="mmSearch">검색</button>
+      <span style="border-left:1px solid var(--line);padding-left:8px;">
+        <label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">직접입력 창고 / 지구</label>
+        <input id="mmWhs" style="width:90px;" placeholder="창고"> <input id="mmZone" style="width:90px;" placeholder="지구">
+      </span>
+      <span class="hint" id="mmInfo" style="margin-left:auto;"></span>
+    </div>
+    <div style="border:1px solid var(--line);border-radius:8px;max-height:44vh;overflow:auto;">
+      <table id="mmTable" style="width:100%;"><thead></thead><tbody></tbody></table>
+    </div>
+    <div class="modal-btns">
+      <button class="ghost" id="mmCancel">닫기</button>
+      <button class="ok" id="mmApply">선택 행에 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- 매핑파일 관리 모달 -->
+<div class="overlay" id="maOverlay">
+  <div class="modal">
+    <h2>매핑파일 관리 <span class="tag">서버에 저장 · 모든 PC 공유</span></h2>
+    <div id="maCurrent" style="font-size:13px;color:var(--sub);margin-bottom:10px;"></div>
+    <div class="frow">
+      <label>새 통합매핑 엑셀 업로드 (시트: 지역코드 / 센터코드 / 비식품센터코드)</label>
+      <input type="file" id="maFile" accept=".xlsx">
+    </div>
+    <div id="maPreview" style="font-size:12.5px;color:var(--ink);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:none;"></div>
+    <div style="font-size:12px;color:var(--sub);">※ 업로드하면 서버의 기존 매핑을 덮어씁니다(모든 PC 공통). 기존 데이터는 그대로 두려면 닫기.</div>
+    <div class="modal-btns">
+      <button class="ghost" id="maCancel">닫기</button>
+      <button class="ok" id="maSave" disabled>서버에 저장</button>
+    </div>
+  </div>
 </div>
 
 <!-- 화주사 관리 모달 -->
@@ -295,8 +346,24 @@ function writeXlsx(headers, dataRows){
 }
 
 // ===================== 설정 (localStorage) =====================
-const SKEY="store_config_v1";
-function defaultCfg(){ return {shippers:{"스타로지스":{화주코드:"2110",매출처코드:"01",편번호:"1",가온시장코드:"2110",구분:"주류"}}, selected:"스타로지스"}; }
+const SKEY="store_config_v2";
+function defaultCfg(){
+  const S=(code,gubun)=>({화주코드:code,매출처코드:"01",편번호:"1",가온시장코드:code,구분:gubun});
+  const shippers={
+    "스타로지스":S("2110","주류"),"매그니프":S("2029","비식품"),"한울앤제주":S("2084","주류"),
+    "디앤피스피리츠":S("2137","주류"),"제이앤디":S("2146","주류"),"한라산":S("2093","주류"),
+    "커머스파크":S("2045","비식품"),"윌리엄그랜트":S("2155","주류"),"리스코아이앤씨":S("2135","주류"),
+    "레고":S("2071","비식품"),"영실업":S("2123","비식품"),"보령메디앙스":S("1124","비식품"),
+    "주식회사피브이":S("2114","비식품"),"리스코":S("2135","주류"),"플래티넘":S("2145","주류"),
+    "젠니혼":S("2035","주류"),"다인인터네셔널":S("2115","주류"),"맨소래담":S("2049","비식품"),
+    "화요":S("2089","주류"),"바이오포트":S("2151","주류"),"오비맥주":S("2001","주류"),
+    "프리미엄":S("2000","주류"),"디아지오":S("2007","주류"),"한국타이어":S("2108","비식품"),
+    "SAMG":S("2156","비식품"),"바이오포트(영남)":S("2119","비식품"),"드링크인터네셔널":S("2129","주류"),
+    "인터리커":S("2130","주류"),"비어벨트":S("2139","주류"),"펄세스":S("2493","비식품"),
+    "미미월드":S("3011","비식품"),"바카디":S("2154","주류"),"대호에프앤비":S("2157","비식품")
+  };
+  return {shippers, selected:"스타로지스"};
+}
 function loadCfg(){ try{const r=JSON.parse(localStorage.getItem(SKEY)); if(r&&r.shippers&&Object.keys(r.shippers).length)return r;}catch(e){} return defaultCfg(); }
 function saveCfg(){ localStorage.setItem(SKEY, JSON.stringify(CFG)); }
 let CFG=loadCfg();
@@ -304,6 +371,7 @@ let CFG=loadCfg();
 // ===================== 그리드 상태 =====================
 const $=(id)=>document.getElementById(id);
 let gridData=[];
+let selectedRows=new Set();
 const INIT_ROWS=10;
 function blankRow(){ const o={}; FIELDS.forEach(f=>o[f]=""); return o; }
 function ensureRows(){ if(!gridData.length) for(let i=0;i<INIT_ROWS;i++) gridData.push(blankRow()); }
@@ -326,7 +394,7 @@ function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); }
 
 // ---- 그리드 렌더 ----
 function renderHead(){
-  let h='<tr><th class="rownum">#</th>';
+  let h='<tr><th class="rownum"><input type="checkbox" id="selAll" title="전체 선택"> #</th>';
   FIELDS.forEach(f=>{
     let badge=""; if(PARSE_F.has(f))badge=' <span class="p">파싱</span>'; else if(CODE_F.has(f))badge=' <span class="c">코드</span>';
     h+='<th>'+f+badge+'</th>';
@@ -336,7 +404,7 @@ function renderHead(){
 function renderBody(){
   let html="";
   gridData.forEach((row,r)=>{
-    html+='<tr><td class="cellno">'+(r+1)+'</td>';
+    html+='<tr><td class="cellno"><input type="checkbox" class="rowsel" data-r="'+r+'"'+(selectedRows.has(r)?' checked':'')+'> '+(r+1)+'</td>';
     FIELDS.forEach(f=>{
       const v=(row[f]!=null?String(row[f]):"").replace(/"/g,"&quot;");
       const cls=PARSE_F.has(f)?' class="parse"':(CODE_F.has(f)?' class="code"':'');
@@ -348,14 +416,18 @@ function renderBody(){
   $("grid").querySelector("tbody").innerHTML=html;
   renderFixed();
 }
-function buildGrid(){ gridData=[]; ensureRows(); renderHead(); renderBody(); status(""); }
+function buildGrid(){ gridData=[]; selectedRows.clear(); ensureRows(); renderHead(); renderBody(); status(""); }
 
 // ---- 입력/붙여넣기 이벤트 ----
 $("grid").addEventListener("input",(e)=>{ const t=e.target; if(t.tagName!=="INPUT")return; const r=+t.dataset.r,f=t.dataset.f; if(gridData[r])gridData[r][f]=t.value; });
 $("grid").addEventListener("change",(e)=>{
-  const t=e.target; if(t.tagName!=="INPUT"||t.dataset.f!=="입력주소")return;
-  const r=+t.dataset.r; const [a,b,c]=splitAddress(gridData[r]["입력주소"]||"");
-  gridData[r]["시도"]=a; gridData[r]["시군구"]=b; gridData[r]["읍면동"]=c; renderBody();
+  const t=e.target; if(t.tagName!=="INPUT")return;
+  if(t.id==="selAll"){ if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear(); renderBody(); return; }
+  if(t.classList.contains("rowsel")){ const r=+t.dataset.r; if(t.checked)selectedRows.add(r); else selectedRows.delete(r); return; }
+  if(t.dataset.f==="입력주소"){
+    const r=+t.dataset.r; const [a,b,c]=splitAddress(gridData[r]["입력주소"]||"");
+    gridData[r]["시도"]=a; gridData[r]["시군구"]=b; gridData[r]["읍면동"]=c; renderBody();
+  }
 });
 $("grid").addEventListener("paste",(e)=>{
   const t=e.target; if(t.tagName!=="INPUT")return;
@@ -390,7 +462,7 @@ function importRows(rows){
   const header=rows[0].map(c=>String(c==null?"":c).trim());
   const idx={}; for(const f in HDR_CAND) idx[f]=matchHeader(header,HDR_CAND[f]);
   const essential=["고객사점포코드","점포명","입력주소"].filter(f=>idx[f]<0);
-  gridData=[];
+  gridData=[]; selectedRows.clear();
   rows.slice(1).forEach(r=>{
     const o=blankRow();
     for(const f in HDR_CAND) if(idx[f]>=0) o[f]=String(r[idx[f]]==null?"":r[idx[f]]).trim();
@@ -405,7 +477,7 @@ function importRows(rows){
 // ---- 툴바 ----
 $("btnAddRows").onclick=()=>{ const n=Math.max(1,parseInt($("addRowsCount").value)||5); for(let i=0;i<n;i++)gridData.push(blankRow()); renderBody(); };
 $("btnReparse").onclick=()=>{ gridData.forEach(r=>{ if((r["입력주소"]||"").trim()){ const [a,b,c]=splitAddress(r["입력주소"]); r["시도"]=a;r["시군구"]=b;r["읍면동"]=c; } }); renderBody(); status("주소 재파싱 완료"); };
-$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>FIELDS.some(f=>(r[f]||"").trim())); ensureRows(); renderBody(); };
+$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>FIELDS.some(f=>(r[f]||"").trim())); selectedRows.clear(); ensureRows(); renderBody(); };
 $("btnClear").onclick=()=>{ if(confirm("모든 입력을 지울까요?")) buildGrid(); };
 $("btnFillDeliv").onclick=()=>{
   const prefix=$("prefix").value.trim(); let n=0;
@@ -521,10 +593,167 @@ $("btnGaonAssign").onclick=async ()=>{
   status("가온 자동부여 "+n+"건 (마지막 "+maxCode+" → "+startCode+"부터)");
 };
 
+// ===================== 통합 매핑 =====================
+const GU_NEED_DONG=new Set(["동구","서구","남구","북구","중구"]);
+let MAP=null, REGION={}, ZONES={liquor:null, nonfood:null};
+function buildZone(rows){
+  const d2={},d3={};
+  rows.forEach(a=>{ const sido=a[0],sgg=a[1],eup=a[2],whs=a[3],zone=a[4]; const k2=sido+"|"+sgg;
+    if(!(k2 in d2))d2[k2]=[whs,zone]; if(eup){ const k3=k2+"|"+eup; if(!(k3 in d3))d3[k3]=[whs,zone]; } });
+  return {d2,d3,rows};
+}
+function buildMapDicts(){
+  REGION={}; (MAP.region||[]).forEach(a=>{ if(!(a[0] in REGION))REGION[a[0]]=a[1]; });
+  ZONES.liquor=buildZone((MAP.zone&&MAP.zone.liquor)||[]);
+  ZONES.nonfood=buildZone((MAP.zone&&MAP.zone.nonfood)||[]);
+}
+function mapInfo(){
+  if(MAP&&MAP.counts) $("mapInfo").textContent="매핑 로드됨 · 지역 "+MAP.counts.region+" / 주류 "+MAP.counts.liquor+" / 비식품 "+MAP.counts.nonfood+"행";
+  else $("mapInfo").textContent="매핑 데이터 없음 (배포 서버에서 실행 · [매핑파일 관리]에서 업로드)";
+}
+async function fetchMapping(){
+  try{ const r=await fetch("/api/mapping",{cache:"no-store"}); if(!r.ok)throw 0; MAP=await r.json(); buildMapDicts(); }
+  catch(e){ MAP=null; }
+  mapInfo();
+}
+function activeZone(){ return ZONES[(curShipper().구분==="비식품")?"nonfood":"liquor"]; }
+function zoneHit(Z,sido,sgg,eup){
+  if(!sido&&!sgg)return null;
+  const need=GU_NEED_DONG.has(sgg)||[" 동구"," 서구"," 남구"," 북구"," 중구"].some(x=>sgg.endsWith(x));
+  if(need) return Z.d3[sido+"|"+sgg+"|"+eup]||Z.d2[sido+"|"+sgg]||null;
+  return Z.d2[sido+"|"+sgg]||null;
+}
+$("btnMap").onclick=()=>{
+  if(!MAP){ alert("매핑 데이터가 없습니다.\n· 배포된 서버(http://주소/)에서 사용해야 합니다.\n· [매핑파일 관리]에서 통합매핑 엑셀을 업로드하세요."); return; }
+  const Z=activeZone(); let mapped=0, miss=0;
+  gridData.forEach(row=>{
+    if(!["고객사점포코드","점포명","입력주소"].some(f=>(row[f]||"").trim()))return;
+    const sido=(row["시도"]||"").trim(), sgg=(row["시군구"]||"").trim(), eup=(row["읍면동"]||"").trim();
+    row["지역코드"]=REGION[sido]||"";
+    const hit=zoneHit(Z,sido,sgg,eup);
+    if(hit){ row["창고코드"]=hit[0]; row["배송지구코드"]=hit[1]; mapped++; }
+    else { row["창고코드"]=""; row["배송지구코드"]=""; miss++; }
+  });
+  renderBody(); status("맵핑 완료 · 성공 "+mapped+" / 미매핑 "+miss+" (구분: "+(curShipper().구분||"주류")+")");
+};
+$("btnUnmapped").onclick=()=>{
+  selectedRows.clear(); let n=0;
+  gridData.forEach((row,i)=>{
+    if(!["고객사점포코드","점포명","입력주소"].some(f=>(row[f]||"").trim()))return;
+    if(!(row["창고코드"]||"").trim()||!(row["배송지구코드"]||"").trim()){ selectedRows.add(i); n++; }
+  });
+  renderBody(); status(n?("미매핑 "+n+"행 선택됨"):"미매핑 행 없음");
+};
+
+// ---- 수동 매핑 팝업 ----
+let mmFiltered=[], mmSel=-1;
+function openManualMap(){
+  if(!MAP){ alert("매핑 데이터가 없습니다."); return; }
+  const Z=activeZone();
+  const sidos=[...new Set(Z.rows.map(r=>r[0]).filter(Boolean))].sort();
+  $("mmSido").innerHTML='<option value="">(전체)</option>'+sidos.map(s=>'<option>'+s+'</option>').join("");
+  $("mmSgg").value=""; $("mmEup").value=""; $("mmWhs").value=""; $("mmZone").value=""; mmSel=-1;
+  $("mmTable").querySelector("thead").innerHTML='<tr><th>시도</th><th>시군구</th><th>읍면동</th><th>창고코드</th><th>지구코드</th></tr>';
+  mmRunFilter();
+  $("mmInfo").textContent="선택 행 "+selectedRows.size+"개";
+  $("mmOverlay").style.display="flex";
+}
+function mmRunFilter(){
+  const Z=activeZone(); const sido=$("mmSido").value, sgg=$("mmSgg").value.trim(), eup=$("mmEup").value.trim();
+  mmFiltered=Z.rows.filter(r=>(!sido||r[0]===sido)&&(!sgg||r[1].includes(sgg))&&(!eup||(r[2]||"").includes(eup))).slice(0,500);
+  mmSel=-1;
+  const tb=$("mmTable").querySelector("tbody");
+  tb.innerHTML=mmFiltered.map((r,i)=>'<tr data-i="'+i+'" style="cursor:pointer;"><td>'+r[0]+'</td><td>'+r[1]+'</td><td>'+(r[2]||"")+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td></tr>').join("")
+    || '<tr><td colspan="5" style="padding:8px;color:var(--sub);">결과 없음</td></tr>';
+}
+$("mmSearch").onclick=mmRunFilter;
+["mmSgg","mmEup"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter")mmRunFilter(); }));
+$("mmSido").onchange=mmRunFilter;
+$("mmTable").addEventListener("click",e=>{
+  const tr=e.target.closest("tr"); if(!tr||tr.dataset.i==null)return;
+  mmSel=+tr.dataset.i; [...$("mmTable").querySelectorAll("tbody tr")].forEach(x=>x.style.background="");
+  tr.style.background="#dbeafe";
+  const r=mmFiltered[mmSel]; if(r){ $("mmWhs").value=r[3]; $("mmZone").value=r[4]; }
+});
+$("mmCancel").onclick=()=>$("mmOverlay").style.display="none";
+$("mmApply").onclick=()=>{
+  const whs=cleanCode($("mmWhs").value), zone=cleanCode($("mmZone").value);
+  if(!whs||!zone){ alert("창고코드와 지구코드가 모두 필요합니다. (표에서 행을 선택하거나 직접 입력)"); return; }
+  const targets=selectedRows.size?[...selectedRows]:[];
+  if(!targets.length){ alert("적용할 행을 그리드에서 체크(선택)하세요.\n[미매핑 행 선택]을 먼저 눌러도 됩니다."); return; }
+  let n=0; targets.forEach(i=>{ if(gridData[i]){ gridData[i]["창고코드"]=whs; gridData[i]["배송지구코드"]=zone; n++; } });
+  renderBody(); $("mmOverlay").style.display="none"; status("수동 매핑 적용 "+n+"행 (창고 "+whs+" / 지구 "+zone+")");
+};
+$("btnManualMap").onclick=openManualMap;
+
+// ---- 매핑파일 관리(업로드) 팝업 ----
+function sheetMap(files,dec){
+  const map={};
+  try{
+    const wb=new DOMParser().parseFromString(dec.decode(files["xl/workbook.xml"]),"application/xml");
+    const rels=new DOMParser().parseFromString(dec.decode(files["xl/_rels/workbook.xml.rels"]),"application/xml");
+    const rid={}; [...rels.getElementsByTagName("Relationship")].forEach(r=>rid[r.getAttribute("Id")]=r.getAttribute("Target"));
+    [...wb.getElementsByTagName("sheet")].forEach(sh=>{ const nm=sh.getAttribute("name"); let tgt=rid[sh.getAttribute("r:id")||sh.getAttribute("id")];
+      if(tgt){ tgt=tgt.replace(/^\//,""); if(!tgt.startsWith("xl/"))tgt="xl/"+tgt; map[nm]=tgt; } });
+  }catch(e){}
+  return map;
+}
+function readXlsxSheets(buf, names){
+  const files=fflate.unzipSync(new Uint8Array(buf)); const dec=new TextDecoder();
+  const shared=parseShared(files,dec); const sm=sheetMap(files,dec); const out={};
+  names.forEach(n=>{ out[n]= sm[n]?parseSheetRows(files,sm[n],shared,dec):null; });
+  return out;
+}
+function cellClean(v){ if(v==null)return ""; const s=String(v).trim(); return s.toLowerCase()==="nan"?"":s; }
+function parseMappingWorkbook(buf){
+  const sh=readXlsxSheets(buf,["지역코드","센터코드","비식품센터코드"]);
+  const missing=["지역코드","센터코드","비식품센터코드"].filter(n=>!sh[n]||sh[n].length<2);
+  if(missing.length) throw new Error("시트를 찾을 수 없음: "+missing.join(", "));
+  const H=rows=>rows[0].map(x=>String(x==null?"":x).trim());
+  const rH=H(sh["지역코드"]); const ri=matchHeader(rH,["지역","시도"]), rc=matchHeader(rH,["지역코드","코드"]);
+  const region=[]; sh["지역코드"].slice(1).forEach(r=>{ const a=normalizeSido(r[ri]); const b=cleanCode(r[rc]); if(a)region.push([a,b]); });
+  const loadZone=rows=>{
+    const h=H(rows); const iS=matchHeader(h,["시도"]),iG=matchHeader(h,["시군구"]),iE=matchHeader(h,["읍면동","읍/면/동"]),iW=matchHeader(h,["창고코드","창고"]),iZ=matchHeader(h,["지구코드","배송지구코드","지구"]);
+    const out=[]; rows.slice(1).forEach(r=>{ const sido=normalizeSido(r[iS]); const sgg=cellClean(r[iG]); const eup=cellClean(r[iE]).replace(/[()]/g,""); const whs=cleanCode(r[iW]); const zone=cleanCode(r[iZ]); if(!sido&&!sgg)return; out.push([sido,sgg,eup,whs,zone]); });
+    return out;
+  };
+  const liquor=loadZone(sh["센터코드"]), nonfood=loadZone(sh["비식품센터코드"]);
+  return {v:1,region,zone:{liquor,nonfood},counts:{region:region.length,liquor:liquor.length,nonfood:nonfood.length}};
+}
+let maParsed=null;
+$("btnMapAdmin").onclick=()=>{
+  maParsed=null; $("maSave").disabled=true; $("maFile").value=""; $("maPreview").style.display="none";
+  $("maCurrent").textContent = MAP&&MAP.counts ? ("현재 서버 매핑 · 지역 "+MAP.counts.region+" / 주류 "+MAP.counts.liquor+" / 비식품 "+MAP.counts.nonfood+"행") : "현재 서버 매핑 없음";
+  $("maOverlay").style.display="flex";
+};
+$("maCancel").onclick=()=>$("maOverlay").style.display="none";
+$("maFile").onchange=(e)=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    maParsed=parseMappingWorkbook(rd.result);
+    $("maPreview").style.display="block";
+    $("maPreview").textContent="✔ 읽기 성공 → 지역 "+maParsed.counts.region+" / 주류(센터코드) "+maParsed.counts.liquor+" / 비식품 "+maParsed.counts.nonfood+"행. [서버에 저장]을 누르면 반영됩니다.";
+    $("maSave").disabled=false;
+  }catch(err){ maParsed=null; $("maSave").disabled=true; $("maPreview").style.display="block"; $("maPreview").textContent="✖ 읽기 실패: "+err.message; } };
+  rd.readAsArrayBuffer(f);
+};
+$("maSave").onclick=async ()=>{
+  if(!maParsed)return; $("maSave").disabled=true; $("maPreview").textContent="서버에 저장 중…";
+  try{
+    const resp=await fetch("/api/mapping",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(maParsed)});
+    const r=await resp.json();
+    if(!r.ok)throw new Error(r.error||"저장 실패");
+    MAP=maParsed; buildMapDicts(); mapInfo();
+    $("maOverlay").style.display="none"; status("매핑파일 서버 저장 완료 (모든 PC 공통)");
+  }catch(e){ $("maSave").disabled=false; $("maPreview").textContent="✖ 저장 실패: "+e.message+"\n(배포 서버에서만 저장 가능)"; }
+};
+
 // ===================== 시작 =====================
 refreshShipperSelect();
 buildGrid();
 renderFixed();
+fetchMapping();
 </script>
 </body>
 </html>

@@ -7,8 +7,10 @@
 - 계정은 서버에 저장하지 않는다. 요청마다 브라우저(localStorage)에서 전달받아 중계만 한다.
 - 순수 표준 라이브러리만 사용 (pip 설치 불필요). 127.0.0.1:8080 에서 대기, nginx가 /api/ 로 프록시.
 """
+import os
 import json
 import re
+import shutil
 import http.cookiejar
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -20,6 +22,33 @@ QUERY_URL = GAON_HOST + "/hanex//dynamicService.do"
 COMPANY_LOGIN = "100"
 COMPANY_QUERY = "001"
 LISTEN = ("127.0.0.1", 8080)
+
+# 통합매핑 데이터 저장 위치 (git repo 밖 · 재배포에도 유지)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # hanex_tool
+DEFAULT_MAP = os.path.join(BASE_DIR, "data", "mapping.default.json")
+DATA_DIR = os.path.join(os.path.expanduser("~"), "hanex_data")
+MAP_PATH = os.path.join(DATA_DIR, "mapping.json")
+MAX_UPLOAD = 30 * 1024 * 1024  # 30MB
+
+
+def read_mapping_bytes():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if not os.path.exists(MAP_PATH) and os.path.exists(DEFAULT_MAP):
+        shutil.copyfile(DEFAULT_MAP, MAP_PATH)
+    if os.path.exists(MAP_PATH):
+        with open(MAP_PATH, "rb") as f:
+            return f.read()
+    return b'{"v":1,"region":[],"zone":{"liquor":[],"nonfood":[]},"counts":{"region":0,"liquor":0,"nonfood":0}}'
+
+
+def write_mapping_bytes(raw):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    obj = json.loads(raw)  # 유효성 검증 (깨진 JSON 저장 방지)
+    tmp = MAP_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, MAP_PATH)
+    return obj.get("counts", {})
 
 
 def store_sort_key(code):
@@ -140,8 +169,28 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_raw(self, code, body, ctype="application/json; charset=utf-8"):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self):
-        if self.path.rstrip("/") != "/api/gaon/maxcode":
+        path = self.path.rstrip("/")
+        if path == "/api/mapping":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                if n <= 0 or n > MAX_UPLOAD:
+                    self._send(400, {"ok": False, "error": "크기 오류"})
+                    return
+                raw = self.rfile.read(n)
+                counts = write_mapping_bytes(raw)
+                self._send(200, {"ok": True, "counts": counts})
+            except Exception as e:
+                self._send(200, {"ok": False, "error": "저장 실패: " + str(e)})
+            return
+        if path != "/api/gaon/maxcode":
             self._send(404, {"ok": False, "error": "not found"})
             return
         try:
@@ -167,8 +216,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": False, "error": str(e)})
 
     def do_GET(self):
-        if self.path.rstrip("/") == "/api/health":
+        path = self.path.rstrip("/")
+        if path == "/api/health":
             self._send(200, {"ok": True})
+        elif path == "/api/mapping":
+            try:
+                self._send_raw(200, read_mapping_bytes())
+            except Exception as e:
+                self._send(200, {"ok": False, "error": str(e)})
         else:
             self._send(404, {"ok": False, "error": "not found"})
 
