@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>점포등록 양식 생성기</title>
+<script src="fflate.js"></script>
+<style>
+  :root{--bg:#f4f6f8;--card:#fff;--line:#e3e8ef;--ink:#1f2937;--sub:#6b7280;
+    --brand:#2563eb;--brand-d:#1d4ed8;--ok:#059669;--warn:#dc2626;--memo:#fffbeb;--memo-b:#f59e0b;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Malgun Gothic','맑은 고딕',system-ui,sans-serif;background:var(--bg);color:var(--ink);}
+  .wrap{max-width:1500px;margin:0 auto;padding:14px 18px 60px;}
+  h1{font-size:20px;margin:0 0 10px;display:flex;align-items:center;gap:10px;}
+  .nav{display:flex;gap:6px;margin-bottom:12px;}
+  .nav a{text-decoration:none;font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--sub);}
+  .nav a.active{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;margin-bottom:12px;}
+  .bar label{font-size:13px;font-weight:700;color:var(--ink);}
+  select,input,textarea{font-family:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:7px 9px;background:#fff;}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  button{cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;font-family:inherit;}
+  .primary{background:var(--brand);color:#fff;} .primary:hover{background:var(--brand-d);}
+  .ok{background:var(--ok);color:#fff;} .ghost{background:#eef2f7;color:var(--ink);} .ghost:hover{background:#e2e8f0;}
+  .danger{background:#fee2e2;color:#b91c1c;}
+  .info{font-size:12px;color:var(--sub);margin-left:auto;}
+  .fixed{background:#eff6ff;border:1px solid #bfdbfe;border-left:5px solid var(--brand);
+    border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;color:#1e40af;}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+  .hint{font-size:12px;color:var(--sub);}
+  .status{font-size:13px;font-weight:700;}
+  .gridwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;overflow:auto;max-height:60vh;}
+  table{border-collapse:collapse;font-size:13px;}
+  th,td{border:1px solid var(--line);padding:0;}
+  th{background:#f1f5f9;font-weight:700;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2;text-align:left;}
+  th.rownum{background:#e2e8f0;}
+  td.cellno{padding:6px 8px;color:#94a3b8;font-size:12px;text-align:right;background:#f8fafc;}
+  td input{border:none;border-radius:0;width:140px;padding:6px 8px;font-size:13px;background:transparent;}
+  td input:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#fff;}
+  td input.parse{background:#f8fafc;color:#475569;} td input.code{background:#fffdf5;}
+  th .p{font-size:10px;color:#0369a1;font-weight:600;background:#e0f2fe;padding:1px 5px;border-radius:4px;}
+  th .c{font-size:10px;color:#92400e;font-weight:600;background:#fef3c7;padding:1px 5px;border-radius:4px;}
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:24px;}
+  .modal{background:#fff;border-radius:14px;width:460px;max-width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  .modal h2{margin:0 0 14px;font-size:17px;}
+  .frow{margin-bottom:10px;}
+  .frow label{font-size:12px;color:var(--sub);font-weight:700;display:block;margin-bottom:3px;}
+  .frow input,.frow select{width:100%;}
+  .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+  .tag{font-size:11px;color:#64748b;font-weight:400;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>점포등록 양식 생성기 <span class="tag">가온 29컬럼 · 공유문자열 호환</span></h1>
+  <div class="nav">
+    <a href="index.html">상품등록</a>
+    <a href="store-registration.html" class="active">점포등록</a>
+  </div>
+
+  <div class="bar">
+    <label>화주사</label>
+    <select id="shipperSel" style="min-width:200px;"></select>
+    <button class="ghost" id="btnManage">관리 / 수정</button>
+    <button class="ghost" id="btnNew">+ 새 화주사</button>
+    <button class="danger" id="btnDel">삭제</button>
+    <span style="border-left:1px solid var(--line);padding-left:10px;">
+      <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none;">
+      <button class="primary" id="btnFile">📂 고객사 파일 열기</button>
+    </span>
+    <span class="info" id="profInfo"></span>
+  </div>
+
+  <div class="fixed" id="fixedBox"></div>
+
+  <div class="toolbar">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input id="addRowsCount" type="number" value="5" min="1" max="1000" style="width:50px;">
+      <button class="ghost" id="btnAddRows">행 추가</button>
+    </div>
+    <button class="ghost" id="btnReparse">주소 재파싱</button>
+    <button class="ghost" id="btnTrim">빈 행 정리</button>
+    <button class="ghost" id="btnClear">전체 지우기</button>
+    <span style="display:flex;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line);">
+      <span style="font-size:12px;color:var(--sub);font-weight:700;">실배송 접두어</span>
+      <input id="prefix" style="width:90px;" placeholder="(선택)">
+      <button class="ghost" id="btnFillDeliv" style="background:#dbeafe;color:#1d4ed8;">고객사코드→실배송 복사</button>
+    </span>
+    <span class="hint">엑셀 파일을 열거나, 복사 후 첫 칸에 Ctrl+V. 주소는 자동 파싱됩니다.</span>
+    <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+      <span class="status ok" id="status"></span>
+      <button class="ok" id="btnGen">📥 엑셀 생성 (.xlsx)</button>
+    </span>
+  </div>
+
+  <div class="gridwrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<!-- 화주사 관리 모달 -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="mTitle">화주사 설정</h2>
+    <div class="frow"><label>화주사명</label><input type="text" id="mName"></div>
+    <div class="frow"><label>화주코드 (엑셀)</label><input type="text" id="mCode"></div>
+    <div class="frow"><label>매출처코드</label><input type="text" id="mSales"></div>
+    <div class="frow"><label>편번호</label><input type="text" id="mPyeon"></div>
+    <div class="frow"><label>가온 시장코드 (조회용)</label><input type="text" id="mMarket"></div>
+    <div class="frow"><label>구분</label><select id="mGubun"><option>주류</option><option>비식품</option></select></div>
+    <div class="modal-btns">
+      <button class="ghost" id="mCancel">취소</button>
+      <button class="ok" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ===================== 상수 =====================
+const ALL_COLUMNS=[
+  "고객사점포코드","자사점포코드","점포명","입력우편번호","입력주소","전화번호","팩스번호","HP번호",
+  "사업자번호","대표자명","업태","종목","고객사 영업사원코드","고객사 영업사원명","고객사 영업사원 HP","고객사 영업사원 e-mail",
+  "화주코드","매출처코드","지역코드","점포담당","요청시각","비표관리구분","배포점포 TYPE",
+  "실배송점포코드","편번호","창고코드","배송지구코드","좌표(X)","좌표(Y)"
+];
+// 그리드에 보여줄/편집할 필드 (순서)
+const FIELDS=["고객사점포코드","점포명","입력주소","HP번호","대표자명","사업자번호",
+  "시도","시군구","읍면동","지역코드","창고코드","배송지구코드","실배송점포코드"];
+const PARSE_F=new Set(["시도","시군구","읍면동"]);
+const CODE_F=new Set(["지역코드","창고코드","배송지구코드","실배송점포코드"]);
+const WIDE={"입력주소":260,"점포명":150};
+const NARROW=new Set(["시도","시군구","읍면동","지역코드","창고코드","배송지구코드"]);
+
+const SIDO={
+  "강원":"강원도","강원도":"강원도","경기":"경기도","경기도":"경기도",
+  "경남":"경상남도","경상남도":"경상남도","경북":"경상북도","경상북도":"경상북도",
+  "광주":"광주광역시","광주광역시":"광주광역시","대구":"대구광역시","대구광역시":"대구광역시",
+  "대전":"대전광역시","대전광역시":"대전광역시","부산":"부산광역시","부산광역시":"부산광역시",
+  "서울":"서울특별시","서울특별자치시":"서울특별시","서울특별시":"서울특별시",
+  "세종":"세종특별자치시","세종특별자치시":"세종특별자치시","울산":"울산광역시","울산광역시":"울산광역시",
+  "인천":"인천광역시","인천광역시":"인천광역시","전남":"전라남도","전라남도":"전라남도",
+  "전북":"전라북도","전라북도":"전라북도","제주":"제주특별자치도","제주특별자치도":"제주특별자치도",
+  "충남":"충청남도","충청남도":"충청남도","충북":"충청북도","충청북도":"충청북도"
+};
+// 헤더 자동 매칭 후보
+const HDR_CAND={
+  "고객사점포코드":["고객사점포코드","고객사 점포코드","점포코드","거래처코드","점포번호"],
+  "점포명":["점포명","매장명","거래처명","점포","상호"],
+  "입력주소":["입력주소","주소","주소지","점포주소","소재지"],
+  "HP번호":["HP번호","HP","휴대폰","핸드폰","연락처","전화번호","전화"],
+  "대표자명":["대표자명","대표자","대표","성명"],
+  "사업자번호":["사업자번호","사업자등록번호","사업자"]
+};
+
+// ===================== 파싱 유틸 (파이썬 이식) =====================
+function cleanCode(v){ if(v==null)return ""; let s=String(v).trim(); if(/^\d+\.0+$/.test(s))return s.split(".")[0]; return s; }
+function blankIfNa(s){ if(s==null)return ""; const t=String(s).trim(); if(["nan","none","null"].includes(t.toLowerCase()))return ""; return t; }
+function normalizeAddress(a){ if(a==null)return ""; return String(a).trim().replace(/,/g," ").replace(/\s+/g," "); }
+function normalizeSido(s){ s=(s==null?"":String(s)).trim(); if(s===""||s.toLowerCase()==="nan")return ""; s=s.replace(/[\s()]/g,""); return SIDO[s]||s; }
+function eumFromParen(a){ if(!a)return ""; const m=a.match(/\(([^)]+?(?:동|읍|면))\)/); return m?m[1].replace(/[\s()]/g,""):""; }
+function eumFromTokens(tokens){ for(const t of tokens){ const t2=t.replace(/[()]/g,""); if(/(?:동|읍|면)$/.test(t2))return t2.replace(/\s+/g,""); } return ""; }
+function splitAddress(addr){
+  const s=normalizeAddress(addr); if(!s)return ["","",""];
+  const t=s.split(" ");
+  const sido=t.length?normalizeSido(t[0]):"";
+  let sigungu,start;
+  if(t.length>=3 && t[1].endsWith("시") && (t[2].endsWith("구")||t[2].endsWith("군"))){ sigungu=t[1]+" "+t[2]; start=3; }
+  else { sigungu=t.length>=2?t[1]:""; start=2; }
+  const eup = eumFromParen(s) || eumFromTokens(t.slice(start)) || eumFromTokens(t);
+  return [sido, sigungu.trim(), eup];
+}
+function norm(s){ return String(s==null?"":s).replace(/\s/g,"").toLowerCase(); }
+function matchHeader(header,cands){
+  const H=header.map(norm);
+  for(const c of cands){ const i=H.indexOf(norm(c)); if(i>=0)return i; }
+  for(let i=0;i<H.length;i++){ if(cands.some(c=>H[i].includes(norm(c))))return i; }
+  return -1;
+}
+
+// ===================== 엑셀 읽기 (fflate unzip + DOMParser) =====================
+function colIdx(ref){ const m=(ref||"").match(/[A-Z]+/); if(!m)return 0; let n=0; for(const ch of m[0]) n=n*26+(ch.charCodeAt(0)-64); return n-1; }
+function parseShared(files,dec){
+  const f=files["xl/sharedStrings.xml"]; if(!f)return [];
+  const doc=new DOMParser().parseFromString(dec.decode(f),"application/xml");
+  return [...doc.getElementsByTagName("si")].map(si=>[...si.getElementsByTagName("t")].map(t=>t.textContent).join(""));
+}
+function firstSheetPath(files,dec){
+  try{
+    const wb=new DOMParser().parseFromString(dec.decode(files["xl/workbook.xml"]),"application/xml");
+    const sheets=[...wb.getElementsByTagName("sheet")];
+    const relsF=files["xl/_rels/workbook.xml.rels"];
+    if(sheets.length && relsF){
+      const rels=new DOMParser().parseFromString(dec.decode(relsF),"application/xml");
+      const map={}; [...rels.getElementsByTagName("Relationship")].forEach(r=>map[r.getAttribute("Id")]=r.getAttribute("Target"));
+      const rid=sheets[0].getAttribute("r:id")||sheets[0].getAttribute("id");
+      let tgt=map[rid]; if(tgt){ tgt=tgt.replace(/^\//,""); if(!tgt.startsWith("xl/"))tgt="xl/"+tgt; if(files[tgt])return tgt; }
+    }
+  }catch(e){}
+  const keys=Object.keys(files).filter(k=>/^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort();
+  return keys[0];
+}
+function parseSheetRows(files,path,shared,dec){
+  const doc=new DOMParser().parseFromString(dec.decode(files[path]),"application/xml");
+  const rows=[];
+  [...doc.getElementsByTagName("row")].forEach(rowEl=>{
+    const arr=[];
+    [...rowEl.getElementsByTagName("c")].forEach(c=>{
+      const ci=colIdx(c.getAttribute("r")); const t=c.getAttribute("t"); let val="";
+      if(t==="s"){ const v=c.getElementsByTagName("v")[0]; val=v?(shared[+v.textContent]||""):""; }
+      else if(t==="inlineStr"){ const is=c.getElementsByTagName("t")[0]; val=is?is.textContent:""; }
+      else { const v=c.getElementsByTagName("v")[0]; val=v?v.textContent:""; }
+      arr[ci]=val;
+    });
+    for(let i=0;i<arr.length;i++) if(arr[i]==null)arr[i]="";
+    rows.push(arr);
+  });
+  return rows;
+}
+function readXlsxFile(buf){
+  const files=fflate.unzipSync(new Uint8Array(buf));
+  const dec=new TextDecoder();
+  const shared=parseShared(files,dec);
+  const path=firstSheetPath(files,dec);
+  if(!path) throw new Error("시트를 찾을 수 없습니다.");
+  return parseSheetRows(files,path,shared,dec);
+}
+function parseCSV(text){
+  const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else{ if(ch==='"')q=true; else if(ch===','){row.push(cur);cur="";} else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur="";} else if(ch==='\r'){} else cur+=ch; }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+
+// ===================== xlsx 생성 (공유문자열 · 가온 호환) =====================
+function colLetter(n){let s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+function xmlEsc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+const CT='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>';
+const RELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+const WB='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>';
+const WBRELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>';
+const STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="맑은 고딕"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+function writeXlsx(headers, dataRows){
+  const ncol=headers.length;
+  const sst=new Map(); const order=[]; let total=0;
+  const sid=(v)=>{ total++; if(sst.has(v)) return sst.get(v); const i=order.length; sst.set(v,i); order.push(v); return i; };
+  const cell=(c1,r1,val)=>{
+    const ref=colLetter(c1)+r1;
+    if(val==null||String(val)==="") return '<c r="'+ref+'" s="1"/>';
+    return '<c r="'+ref+'" s="1" t="s"><v>'+sid(String(val))+'</v></c>';
+  };
+  const rowsXml=[];
+  rowsXml.push('<row r="1" spans="1:'+ncol+'">'+headers.map((h,c)=>cell(c+1,1,h)).join("")+'</row>');
+  dataRows.forEach((arr,ri)=>{
+    const r1=ri+2;
+    rowsXml.push('<row r="'+r1+'" spans="1:'+ncol+'">'+headers.map((h,c)=>cell(c+1,r1,arr[c]!==undefined?arr[c]:null)).join("")+'</row>');
+  });
+  const lastRef=colLetter(ncol)+(dataRows.length+1);
+  const sheetXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:'+lastRef+'"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData>'+rowsXml.join("")+'</sheetData></worksheet>';
+  const si=order.map(v=>{ const t=xmlEsc(v); return (v!==v.trim()||v.indexOf("\n")>=0)?'<si><t xml:space="preserve">'+t+'</t></si>':'<si><t>'+t+'</t></si>'; }).join("");
+  const sharedXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+total+'" uniqueCount="'+order.length+'">'+si+'</sst>';
+  const enc=new TextEncoder();
+  const files={
+    "[Content_Types].xml":enc.encode(CT),
+    "_rels/.rels":enc.encode(RELS),
+    "xl/workbook.xml":enc.encode(WB),
+    "xl/_rels/workbook.xml.rels":enc.encode(WBRELS),
+    "xl/styles.xml":enc.encode(STYLES),
+    "xl/sharedStrings.xml":enc.encode(sharedXml),
+    "xl/worksheets/sheet1.xml":enc.encode(sheetXml),
+  };
+  return fflate.zipSync(files,{level:6});
+}
+
+// ===================== 설정 (localStorage) =====================
+const SKEY="store_config_v1";
+function defaultCfg(){ return {shippers:{"스타로지스":{화주코드:"2110",매출처코드:"01",편번호:"1",가온시장코드:"2110",구분:"주류"}}, selected:"스타로지스"}; }
+function loadCfg(){ try{const r=JSON.parse(localStorage.getItem(SKEY)); if(r&&r.shippers&&Object.keys(r.shippers).length)return r;}catch(e){} return defaultCfg(); }
+function saveCfg(){ localStorage.setItem(SKEY, JSON.stringify(CFG)); }
+let CFG=loadCfg();
+
+// ===================== 그리드 상태 =====================
+const $=(id)=>document.getElementById(id);
+let gridData=[];
+const INIT_ROWS=10;
+function blankRow(){ const o={}; FIELDS.forEach(f=>o[f]=""); return o; }
+function ensureRows(){ if(!gridData.length) for(let i=0;i<INIT_ROWS;i++) gridData.push(blankRow()); }
+function status(t){ $("status").textContent=t?("✔ "+t):""; }
+function curShipper(){ return CFG.shippers[CFG.selected]||{}; }
+
+// ---- 화주사 UI ----
+function refreshShipperSelect(){
+  const sel=$("shipperSel"); sel.innerHTML="";
+  Object.keys(CFG.shippers).forEach(name=>{ const o=document.createElement("option"); o.value=name; o.textContent=name; sel.appendChild(o); });
+  if(!CFG.shippers[CFG.selected]) CFG.selected=Object.keys(CFG.shippers)[0];
+  sel.value=CFG.selected;
+}
+function renderFixed(){
+  const s=curShipper(), zone=(s.구분==="비식품")?"주소(비식품)":"주소(주류)";
+  $("fixedBox").innerHTML="<b>["+CFG.selected+"]</b> 구분="+(s.구분||"주류")+" &nbsp;|&nbsp; 엑셀 고정값: 화주코드="+(s.화주코드||"")+", 매출처코드="+(s.매출처코드||"")+", 편번호="+(s.편번호||"")+" &nbsp;|&nbsp; 가온 시장코드="+(s.가온시장코드||"-")+" &nbsp;|&nbsp; 매핑기준="+zone;
+  $("profInfo").textContent="총 "+gridData.filter(r=>FIELDS.some(f=>(r[f]||"").trim())).length+"행 입력";
+}
+function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); }
+
+// ---- 그리드 렌더 ----
+function renderHead(){
+  let h='<tr><th class="rownum">#</th>';
+  FIELDS.forEach(f=>{
+    let badge=""; if(PARSE_F.has(f))badge=' <span class="p">파싱</span>'; else if(CODE_F.has(f))badge=' <span class="c">코드</span>';
+    h+='<th>'+f+badge+'</th>';
+  });
+  h+='</tr>'; $("grid").querySelector("thead").innerHTML=h;
+}
+function renderBody(){
+  let html="";
+  gridData.forEach((row,r)=>{
+    html+='<tr><td class="cellno">'+(r+1)+'</td>';
+    FIELDS.forEach(f=>{
+      const v=(row[f]!=null?String(row[f]):"").replace(/"/g,"&quot;");
+      const cls=PARSE_F.has(f)?' class="parse"':(CODE_F.has(f)?' class="code"':'');
+      const w=WIDE[f]?(' style="width:'+WIDE[f]+'px"'):(NARROW.has(f)?' style="width:90px"':'');
+      html+='<td><input'+cls+w+' data-r="'+r+'" data-f="'+f+'" value="'+v+'"></td>';
+    });
+    html+='</tr>';
+  });
+  $("grid").querySelector("tbody").innerHTML=html;
+  renderFixed();
+}
+function buildGrid(){ gridData=[]; ensureRows(); renderHead(); renderBody(); status(""); }
+
+// ---- 입력/붙여넣기 이벤트 ----
+$("grid").addEventListener("input",(e)=>{ const t=e.target; if(t.tagName!=="INPUT")return; const r=+t.dataset.r,f=t.dataset.f; if(gridData[r])gridData[r][f]=t.value; });
+$("grid").addEventListener("change",(e)=>{
+  const t=e.target; if(t.tagName!=="INPUT"||t.dataset.f!=="입력주소")return;
+  const r=+t.dataset.r; const [a,b,c]=splitAddress(gridData[r]["입력주소"]||"");
+  gridData[r]["시도"]=a; gridData[r]["시군구"]=b; gridData[r]["읍면동"]=c; renderBody();
+});
+$("grid").addEventListener("paste",(e)=>{
+  const t=e.target; if(t.tagName!=="INPUT")return;
+  const text=(e.clipboardData||window.clipboardData).getData("text");
+  if(text.indexOf("\t")<0 && text.indexOf("\n")<0)return;
+  e.preventDefault();
+  let startI=FIELDS.indexOf(t.dataset.f); if(startI<0)startI=0;
+  const startR=+t.dataset.r;
+  let lines=text.replace(/\r/g,"").split("\n"); if(lines.length>1&&lines[lines.length-1]==="")lines.pop();
+  if(lines.length){ const first=lines[0].split("\t").map(x=>x.trim()); const allC=[].concat(...Object.values(HDR_CAND)).map(norm); if(first.some(x=>allC.includes(norm(x))))lines=lines.slice(1); }
+  lines.forEach((line,i)=>{
+    const cells=line.split("\t"); const rr=startR+i;
+    while(gridData.length<=rr)gridData.push(blankRow());
+    cells.forEach((val,j)=>{ const f=FIELDS[startI+j]; if(f)gridData[rr][f]=val.trim(); });
+    if((gridData[rr]["입력주소"]||"").trim()){ const [a,b,c]=splitAddress(gridData[rr]["입력주소"]); gridData[rr]["시도"]=a;gridData[rr]["시군구"]=b;gridData[rr]["읍면동"]=c; }
+  });
+  renderBody(); status("붙여넣기 완료");
+});
+
+// ---- 파일 열기 ----
+$("btnFile").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=(e)=>{
+  const f=e.target.files[0]; if(!f)return;
+  const name=f.name.toLowerCase(), rd=new FileReader();
+  if(name.endsWith(".csv")){ rd.onload=()=>importRows(parseCSV(rd.result)); rd.readAsText(f,"utf-8"); }
+  else { rd.onload=()=>{ try{ importRows(readXlsxFile(rd.result)); }catch(err){ alert("엑셀 읽기 실패: "+err.message); } }; rd.readAsArrayBuffer(f); }
+  e.target.value="";
+};
+function importRows(rows){
+  rows=rows.filter(r=>r.some(c=>String(c==null?"":c).trim()));
+  if(!rows.length){ alert("데이터가 없습니다."); return; }
+  const header=rows[0].map(c=>String(c==null?"":c).trim());
+  const idx={}; for(const f in HDR_CAND) idx[f]=matchHeader(header,HDR_CAND[f]);
+  const essential=["고객사점포코드","점포명","입력주소"].filter(f=>idx[f]<0);
+  gridData=[];
+  rows.slice(1).forEach(r=>{
+    const o=blankRow();
+    for(const f in HDR_CAND) if(idx[f]>=0) o[f]=String(r[idx[f]]==null?"":r[idx[f]]).trim();
+    if((o["입력주소"]||"").trim()){ const [a,b,c]=splitAddress(o["입력주소"]); o["시도"]=a;o["시군구"]=b;o["읍면동"]=c; }
+    gridData.push(o);
+  });
+  ensureRows(); renderBody();
+  status(gridData.length+"건 로드");
+  if(essential.length) alert("다음 필수 컬럼을 자동으로 찾지 못했습니다: "+essential.join(", ")+"\n\n엑셀 헤더: "+header.filter(Boolean).join(" | ")+"\n\n헤더명을 확인하거나 그리드에서 직접 입력/붙여넣기 하세요.");
+}
+
+// ---- 툴바 ----
+$("btnAddRows").onclick=()=>{ const n=Math.max(1,parseInt($("addRowsCount").value)||5); for(let i=0;i<n;i++)gridData.push(blankRow()); renderBody(); };
+$("btnReparse").onclick=()=>{ gridData.forEach(r=>{ if((r["입력주소"]||"").trim()){ const [a,b,c]=splitAddress(r["입력주소"]); r["시도"]=a;r["시군구"]=b;r["읍면동"]=c; } }); renderBody(); status("주소 재파싱 완료"); };
+$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>FIELDS.some(f=>(r[f]||"").trim())); ensureRows(); renderBody(); };
+$("btnClear").onclick=()=>{ if(confirm("모든 입력을 지울까요?")) buildGrid(); };
+$("btnFillDeliv").onclick=()=>{
+  const prefix=$("prefix").value.trim(); let n=0;
+  gridData.forEach(r=>{ if((r["실배송점포코드"]||"").trim())return; const base=(r["고객사점포코드"]||"").trim(); if(!base)return; r["실배송점포코드"]=prefix?prefix+base:base; n++; });
+  renderBody(); status("실배송 "+n+"건 채움"+(prefix?" (접두어 "+prefix+")":""));
+};
+
+// ---- 엑셀 생성 ----
+$("btnGen").onclick=()=>{
+  const s=curShipper();
+  const out=[];
+  gridData.forEach(row=>{
+    if(!["고객사점포코드","점포명","입력주소"].some(f=>(row[f]||"").trim()))return;
+    const o={}; ALL_COLUMNS.forEach(c=>o[c]="");
+    o["고객사점포코드"]=(row["고객사점포코드"]||"").trim();
+    o["점포명"]=(row["점포명"]||"").trim();
+    o["입력주소"]=(row["입력주소"]||"").trim();
+    o["HP번호"]=(row["HP번호"]||"").trim();
+    o["대표자명"]=(row["대표자명"]||"").trim()||"0";
+    o["사업자번호"]=blankIfNa(row["사업자번호"]);
+    o["지역코드"]=cleanCode(row["지역코드"]);
+    o["창고코드"]=cleanCode(row["창고코드"]);
+    o["배송지구코드"]=cleanCode(row["배송지구코드"]);
+    const deliv=(row["실배송점포코드"]||"").trim();
+    o["실배송점포코드"]=deliv; o["자사점포코드"]=deliv;
+    o["화주코드"]=String(s.화주코드||""); o["매출처코드"]=String(s.매출처코드||""); o["편번호"]=String(s.편번호||"");
+    out.push(ALL_COLUMNS.map(c=>{ const v=o[c]; return (v!=null&&String(v).trim()!=="")?String(v).trim():null; }));
+  });
+  if(!out.length){ alert("생성할 데이터가 없습니다."); return; }
+  const bytes=writeXlsx(ALL_COLUMNS,out);
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
+  const fname="점포등록_"+CFG.selected+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+out.length+"건.xlsx";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  status("생성 완료 ("+out.length+"건)");
+};
+
+// ---- 화주사 모달 ----
+let editingName=null;
+function openEditor(name){
+  editingName=name;
+  const s=name?CFG.shippers[name]:{};
+  $("mTitle").textContent=name?("화주사 수정 - "+name):"새 화주사";
+  $("mName").value=name||""; $("mCode").value=s.화주코드||""; $("mSales").value=s.매출처코드||"";
+  $("mPyeon").value=s.편번호||""; $("mMarket").value=s.가온시장코드||""; $("mGubun").value=s.구분||"주류";
+  $("overlay").style.display="flex"; $("mName").focus();
+}
+$("mCancel").onclick=()=>{ $("overlay").style.display="none"; editingName=null; };
+$("mSave").onclick=()=>{
+  const name=$("mName").value.trim(); if(!name){ alert("화주사명을 입력하세요."); return; }
+  if(name!==editingName && CFG.shippers[name]){ alert("같은 이름의 화주사가 있습니다."); return; }
+  if(editingName && editingName!==name) delete CFG.shippers[editingName];
+  CFG.shippers[name]={ 화주코드:$("mCode").value.trim(), 매출처코드:$("mSales").value.trim(), 편번호:$("mPyeon").value.trim(), 가온시장코드:$("mMarket").value.trim(), 구분:$("mGubun").value };
+  CFG.selected=name; saveCfg();
+  $("overlay").style.display="none"; editingName=null;
+  refreshShipperSelect(); renderFixed();
+};
+$("btnManage").onclick=()=>openEditor(CFG.selected);
+$("btnNew").onclick=()=>openEditor(null);
+$("btnDel").onclick=()=>{
+  if(Object.keys(CFG.shippers).length<=1){ alert("최소 1개 화주사는 있어야 합니다."); return; }
+  if(!confirm("'"+CFG.selected+"' 화주사를 삭제할까요?"))return;
+  delete CFG.shippers[CFG.selected]; CFG.selected=Object.keys(CFG.shippers)[0]; saveCfg();
+  refreshShipperSelect(); renderFixed();
+};
+$("shipperSel").onchange=(e)=>selectShipper(e.target.value);
+
+// ===================== 시작 =====================
+refreshShipperSelect();
+buildGrid();
+renderFixed();
+</script>
+</body>
+</html>
