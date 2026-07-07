@@ -49,6 +49,11 @@
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:24px;}
   .modal{background:#fff;border-radius:14px;width:460px;max-width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
   .modal h2{margin:0 0 14px;font-size:17px;}
+  /* 수동 매핑은 이동 가능한 플로팅 패널 (뒤 그리드 보이고 클릭 가능) */
+  #mmOverlay{background:transparent;pointer-events:none;}
+  #mmOverlay .modal{pointer-events:auto;box-shadow:0 14px 44px rgba(0,0,0,.4);}
+  #mmOverlay h2{cursor:move;user-select:none;}
+  #mmOverlay h2::before{content:"✥ ";color:var(--sub);font-size:14px;}
   .frow{margin-bottom:10px;}
   .frow label{font-size:12px;color:var(--sub);font-weight:700;display:block;margin-bottom:3px;}
   .frow input,.frow select{width:100%;}
@@ -143,9 +148,13 @@
 <div class="overlay" id="maOverlay">
   <div class="modal" style="width:760px;">
     <h2>통합매핑파일 관리 <span class="tag">서버에 저장 · 모든 PC 공유</span></h2>
-    <div id="maCurrent" style="font-size:13px;color:var(--sub);margin-bottom:10px;"></div>
+    <div id="maCurrent" style="font-size:13px;color:var(--sub);margin-bottom:8px;"></div>
+    <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line);">
+      <button class="ghost" id="maDownload" style="background:#dbeafe;color:#1d4ed8;">⬇ 현재 매핑 엑셀 다운로드</button>
+      <span class="hint" style="margin-left:6px;">(누구나 가능 · 3시트 xlsx)</span>
+    </div>
     <div class="frow">
-      <label>통합매핑 엑셀 선택 (.xlsx)</label>
+      <label>통합매핑 엑셀 업로드 (.xlsx) <span style="color:var(--warn);">— 업로드는 비밀번호 필요</span></label>
       <input type="file" id="maFile" accept=".xlsx">
     </div>
     <div id="maConfig" style="display:none;">
@@ -173,6 +182,7 @@
     <div id="maPreview" style="font-size:12.5px;color:var(--ink);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:none;white-space:pre-wrap;"></div>
     <div style="font-size:12px;color:var(--sub);">※ [서버에 저장] 시 기존 매핑을 덮어씁니다(모든 PC 공통). 안 바꾸려면 닫기.</div>
     <div class="modal-btns">
+      <span style="margin-right:auto;font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px;">업로드 비밀번호 <input type="password" id="maPw" style="width:110px;" placeholder="****"></span>
       <button class="ghost" id="maCancel">닫기</button>
       <button class="ok" id="maSave" disabled>서버에 저장</button>
     </div>
@@ -380,6 +390,37 @@ function writeXlsx(headers, dataRows){
     "xl/sharedStrings.xml":enc.encode(sharedXml),
     "xl/worksheets/sheet1.xml":enc.encode(sheetXml),
   };
+  return fflate.zipSync(files,{level:6});
+}
+
+// 여러 시트 xlsx 생성 (매핑 다운로드용, 공유문자열)
+function writeXlsxMulti(sheets){
+  const enc=new TextEncoder();
+  const sst=new Map(), order=[]; let total=0;
+  const sid=(v)=>{ total++; if(sst.has(v))return sst.get(v); const i=order.length; sst.set(v,i); order.push(v); return i; };
+  const cell=(c1,r1,val)=>{ const ref=colLetter(c1)+r1; if(val==null||String(val)==="")return '<c r="'+ref+'" s="1"/>'; return '<c r="'+ref+'" s="1" t="s"><v>'+sid(String(val))+'</v></c>'; };
+  const files={}, overrides=[], rels=[], entries=[];
+  sheets.forEach((sh,si)=>{
+    const idx=si+1, ncol=sh.headers.length, rowsXml=[];
+    rowsXml.push('<row r="1" spans="1:'+ncol+'">'+sh.headers.map((h,c)=>cell(c+1,1,h)).join("")+'</row>');
+    sh.rows.forEach((arr,ri)=>{ const r1=ri+2; rowsXml.push('<row r="'+r1+'" spans="1:'+ncol+'">'+sh.headers.map((h,c)=>cell(c+1,r1,arr[c]!==undefined?arr[c]:null)).join("")+'</row>'); });
+    const lastRef=colLetter(ncol)+(sh.rows.length+1);
+    files["xl/worksheets/sheet"+idx+".xml"]=enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:'+lastRef+'"/><sheetData>'+rowsXml.join("")+'</sheetData></worksheet>');
+    overrides.push('<Override PartName="/xl/worksheets/sheet'+idx+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>');
+    rels.push('<Relationship Id="rId'+idx+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+idx+'.xml"/>');
+    entries.push('<sheet name="'+xmlEsc(sh.name)+'" sheetId="'+idx+'" r:id="rId'+idx+'"/>');
+  });
+  const n=sheets.length;
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+overrides.join("")+'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>';
+  const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+entries.join("")+'</sheets></workbook>';
+  const wbrels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels.join("")+'<Relationship Id="rId'+(n+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId'+(n+2)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>';
+  const siXml=order.map(v=>{ const t=xmlEsc(v); return (v!==v.trim()||v.indexOf("\n")>=0)?'<si><t xml:space="preserve">'+t+'</t></si>':'<si><t>'+t+'</t></si>'; }).join("");
+  files["[Content_Types].xml"]=enc.encode(ct);
+  files["_rels/.rels"]=enc.encode(RELS);
+  files["xl/workbook.xml"]=enc.encode(wb);
+  files["xl/_rels/workbook.xml.rels"]=enc.encode(wbrels);
+  files["xl/styles.xml"]=enc.encode(STYLES);
+  files["xl/sharedStrings.xml"]=enc.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+total+'" uniqueCount="'+order.length+'">'+siXml+'</sst>');
   return fflate.zipSync(files,{level:6});
 }
 
@@ -742,8 +783,22 @@ function openManualMap(){
   $("mmTable").querySelector("thead").innerHTML='<tr><th>시도</th><th>시군구</th><th>읍면동</th><th>창고코드</th><th>지구코드</th></tr>';
   mmRunFilter();
   $("mmInfo").textContent="선택 행 "+selectedRows.size+"개";
+  const mmM=$("mmOverlay").querySelector(".modal"); mmM.style.position=""; mmM.style.left=""; mmM.style.top=""; mmM.style.margin="";
   $("mmOverlay").style.display="flex";
 }
+// 모달 드래그 이동
+function makeDraggable(modal, handle){
+  let drag=false,sx=0,sy=0,ox=0,oy=0;
+  handle.addEventListener("mousedown",e=>{
+    if(["INPUT","SELECT","BUTTON"].includes(e.target.tagName))return;
+    drag=true; const r=modal.getBoundingClientRect();
+    modal.style.position="fixed"; modal.style.margin="0"; modal.style.left=r.left+"px"; modal.style.top=r.top+"px";
+    sx=e.clientX; sy=e.clientY; ox=r.left; oy=r.top; e.preventDefault();
+  });
+  window.addEventListener("mousemove",e=>{ if(!drag)return; modal.style.left=(ox+e.clientX-sx)+"px"; modal.style.top=(oy+e.clientY-sy)+"px"; });
+  window.addEventListener("mouseup",()=>{ drag=false; });
+}
+makeDraggable($("mmOverlay").querySelector(".modal"), $("mmOverlay").querySelector("h2"));
 function mmRunFilter(){
   const Z=activeZone(); const sido=$("mmSido").value, sgg=$("mmSgg").value.trim(), eup=$("mmEup").value.trim();
   mmFiltered=Z.rows.filter(r=>(!sido||r[0]===sido)&&(!sgg||r[1].includes(sgg))&&(!eup||(r[2]||"").includes(eup))).slice(0,500);
@@ -803,11 +858,27 @@ function suggest(h,cands){ const i=matchHeader(h,cands); return (i>=0&&i<h.lengt
 
 let maWB=null;
 $("btnMapAdmin").onclick=()=>{
-  maWB=null; $("maSave").disabled=true; $("maFile").value=""; $("maPreview").style.display="none"; $("maConfig").style.display="none";
+  maWB=null; $("maSave").disabled=true; $("maFile").value=""; $("maPw").value=""; $("maPreview").style.display="none"; $("maConfig").style.display="none";
   $("maCurrent").textContent = MAP&&MAP.counts ? ("현재 서버 매핑 · 지역 "+MAP.counts.region+" / 주류 "+MAP.counts.liquor+" / 비식품 "+MAP.counts.nonfood+"행") : "현재 서버 매핑 없음";
   $("maOverlay").style.display="flex";
 };
 $("maCancel").onclick=()=>$("maOverlay").style.display="none";
+// 현재 매핑 → 3시트 엑셀 다운로드 (누구나)
+$("maDownload").onclick=()=>{
+  if(!MAP||!MAP.zone){ alert("서버 매핑 데이터가 없습니다."); return; }
+  const sheets=[
+    {name:"지역코드", headers:["시도","지역코드"], rows:(MAP.region||[])},
+    {name:"센터코드", headers:["시도","시군구","읍면동","창고코드","지구코드"], rows:(MAP.zone.liquor||[])},
+    {name:"비식품센터코드", headers:["시도","시군구","읍면동","창고코드","지구코드"], rows:(MAP.zone.nonfood||[])}
+  ];
+  const bytes=writeXlsxMulti(sheets);
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
+  const fname="점포등록마스터_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+".xlsx";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  status("매핑 다운로드 ("+fname+")");
+};
 function maPopSheets(){
   const s=maWB.sheets;
   const gReg=s.find(x=>x.includes("지역"))||s[0];
@@ -854,6 +925,7 @@ function maParse(){
 }
 $("maSave").onclick=async ()=>{
   if(!maWB)return;
+  if($("maPw").value.trim()!=="2306"){ $("maPreview").style.display="block"; $("maPreview").textContent="✖ 업로드 비밀번호가 올바르지 않습니다."; $("maPw").focus(); return; }
   $("maSave").disabled=true; $("maPreview").style.display="block"; $("maPreview").textContent="파싱 중…";
   let parsed;
   try{ parsed=maParse(); }catch(err){ $("maSave").disabled=false; $("maPreview").textContent="✖ 파싱 실패: "+err.message; return; }
