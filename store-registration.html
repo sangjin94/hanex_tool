@@ -209,6 +209,7 @@
     <div class="frow"><label>매출처코드</label><input type="text" id="mSales"></div>
     <div class="frow"><label>편번호</label><input type="text" id="mPyeon"></div>
     <div class="frow"><label>가온 시장코드 (조회용)</label><input type="text" id="mMarket"></div>
+    <div class="frow"><label>실배송 접두어 (기본값)</label><input type="text" id="mPrefix" placeholder="예: ST (없으면 비움)"></div>
     <div class="frow"><label>구분</label><select id="mGubun"><option>주류</option><option>비식품</option></select></div>
     <div class="modal-btns">
       <button class="ghost" id="mCancel">취소</button>
@@ -454,7 +455,7 @@ async function fetchShippers(){
     if(s && typeof s==="object" && !Array.isArray(s) && Object.keys(s).length){
       CFG.shippers=s;
       if(!CFG.shippers[CFG.selected]) CFG.selected=Object.keys(s)[0];
-      saveCfg(); refreshShipperSelect(); renderFixed();
+      saveCfg(); refreshShipperSelect(); renderFixed(); applyShipperPrefix();
     }
   }catch(e){}
 }
@@ -484,10 +485,11 @@ function refreshShipperSelect(){
 }
 function renderFixed(){
   const s=curShipper(), zone=(s.구분==="비식품")?"주소(비식품)":"주소(주류)";
-  $("fixedBox").innerHTML="<b>["+CFG.selected+"]</b> 구분="+(s.구분||"주류")+" &nbsp;|&nbsp; 엑셀 고정값: 화주코드="+(s.화주코드||"")+", 매출처코드="+(s.매출처코드||"")+", 편번호="+(s.편번호||"")+" &nbsp;|&nbsp; 가온 시장코드="+(s.가온시장코드||"-")+" &nbsp;|&nbsp; 매핑기준="+zone;
+  $("fixedBox").innerHTML="<b>["+CFG.selected+"]</b> 구분="+(s.구분||"주류")+" &nbsp;|&nbsp; 엑셀 고정값: 화주코드="+(s.화주코드||"")+", 매출처코드="+(s.매출처코드||"")+", 편번호="+(s.편번호||"")+" &nbsp;|&nbsp; 가온 시장코드="+(s.가온시장코드||"-")+" &nbsp;|&nbsp; 실배송 접두어="+(s.접두어||"(없음)")+" &nbsp;|&nbsp; 매핑기준="+zone;
   $("profInfo").textContent="총 "+gridData.filter(r=>FIELDS.some(f=>(r[f]||"").trim())).length+"행 입력";
 }
-function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); }
+function applyShipperPrefix(){ $("prefix").value=(curShipper().접두어||""); }
+function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); applyShipperPrefix(); }
 
 // ---- 그리드 렌더 ----
 function renderHead(){
@@ -645,7 +647,7 @@ function openEditor(name){
   const s=name?CFG.shippers[name]:{};
   $("mTitle").textContent=name?("화주사 수정 - "+name):"새 화주사";
   $("mName").value=name||""; $("mCode").value=s.화주코드||""; $("mSales").value=s.매출처코드||"";
-  $("mPyeon").value=s.편번호||""; $("mMarket").value=s.가온시장코드||""; $("mGubun").value=s.구분||"주류";
+  $("mPyeon").value=s.편번호||""; $("mMarket").value=s.가온시장코드||""; $("mPrefix").value=s.접두어||""; $("mGubun").value=s.구분||"주류";
   $("overlay").style.display="flex"; $("mName").focus();
 }
 $("mCancel").onclick=()=>{ $("overlay").style.display="none"; editingName=null; };
@@ -653,10 +655,10 @@ $("mSave").onclick=async ()=>{
   const name=$("mName").value.trim(); if(!name){ alert("화주사명을 입력하세요."); return; }
   if(name!==editingName && CFG.shippers[name]){ alert("같은 이름의 화주사가 있습니다."); return; }
   if(editingName && editingName!==name) delete CFG.shippers[editingName];
-  CFG.shippers[name]={ 화주코드:$("mCode").value.trim(), 매출처코드:$("mSales").value.trim(), 편번호:$("mPyeon").value.trim(), 가온시장코드:$("mMarket").value.trim(), 구분:$("mGubun").value };
+  CFG.shippers[name]={ 화주코드:$("mCode").value.trim(), 매출처코드:$("mSales").value.trim(), 편번호:$("mPyeon").value.trim(), 가온시장코드:$("mMarket").value.trim(), 접두어:$("mPrefix").value.trim(), 구분:$("mGubun").value };
   CFG.selected=name;
   $("overlay").style.display="none"; editingName=null;
-  refreshShipperSelect(); renderFixed();
+  refreshShipperSelect(); renderFixed(); applyShipperPrefix();
   const ok=await saveShippers();
   status(ok?("화주사 '"+name+"' 저장됨 (모든 PC 공통)"):("화주사 '"+name+"' 저장(이 PC만) — 서버 반영 실패"));
 };
@@ -944,6 +946,7 @@ $("maSave").onclick=async ()=>{
 refreshShipperSelect();
 buildGrid();
 renderFixed();
+applyShipperPrefix();
 fetchShippers();
 fetchMapping();
 </script>
