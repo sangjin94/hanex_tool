@@ -71,6 +71,7 @@
       <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none;">
       <button class="primary" id="btnFile">📂 고객사 파일 열기</button>
     </span>
+    <button class="ghost" id="btnGaonCred">🔑 가온 계정</button>
     <span class="info" id="profInfo"></span>
   </div>
 
@@ -88,6 +89,7 @@
       <span style="font-size:12px;color:var(--sub);font-weight:700;">실배송 접두어</span>
       <input id="prefix" style="width:90px;" placeholder="(선택)">
       <button class="ghost" id="btnFillDeliv" style="background:#dbeafe;color:#1d4ed8;">고객사코드→실배송 복사</button>
+      <button class="ghost" id="btnGaonAssign" style="background:#fef3c7;color:#92400e;">가온 최대코드로 자동부여</button>
     </span>
     <span class="hint">엑셀 파일을 열거나, 복사 후 첫 칸에 Ctrl+V. 주소는 자동 파싱됩니다.</span>
     <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
@@ -112,6 +114,22 @@
     <div class="modal-btns">
       <button class="ghost" id="mCancel">취소</button>
       <button class="ok" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 가온 계정 모달 (이 PC에만 저장) -->
+<div class="overlay" id="gOverlay">
+  <div class="modal">
+    <h2>가온 계정 <span class="tag">이 PC(브라우저)에만 저장됩니다</span></h2>
+    <div class="frow"><label>가온 아이디</label><input type="text" id="gId" autocomplete="off"></div>
+    <div class="frow"><label>가온 비밀번호</label><input type="password" id="gPw" autocomplete="off"></div>
+    <div class="frow"><label>접속 IP (사무실 IP, 선택)</label><input type="text" id="gIp" placeholder="예: 1.223.139.124"></div>
+    <div style="font-size:12px;color:var(--sub);margin-top:4px;">※ '가온 최대코드로 자동부여' 시 이 계정으로 조회합니다. 서버에는 저장되지 않습니다.</div>
+    <div class="modal-btns">
+      <button class="ghost" id="gClear">삭제</button>
+      <button class="ghost" id="gCancel">취소</button>
+      <button class="ok" id="gSave">저장</button>
     </div>
   </div>
 </div>
@@ -455,6 +473,53 @@ $("btnDel").onclick=()=>{
   refreshShipperSelect(); renderFixed();
 };
 $("shipperSel").onchange=(e)=>selectShipper(e.target.value);
+
+// ===================== 가온 계정 (이 PC에만 저장) =====================
+const CKEY="gaon_cred_v1";
+function loadCred(){ try{const r=JSON.parse(localStorage.getItem(CKEY)); if(r)return r;}catch(e){} return {id:"",pw:"",ip:""}; }
+function saveCred(c){ localStorage.setItem(CKEY, JSON.stringify(c)); }
+$("btnGaonCred").onclick=()=>{ const c=loadCred(); $("gId").value=c.id||""; $("gPw").value=c.pw||""; $("gIp").value=c.ip||""; $("gOverlay").style.display="flex"; $("gId").focus(); };
+$("gCancel").onclick=()=>{ $("gOverlay").style.display="none"; };
+$("gClear").onclick=()=>{ localStorage.removeItem(CKEY); $("gId").value="";$("gPw").value="";$("gIp").value=""; status("가온 계정 삭제됨"); };
+$("gSave").onclick=()=>{ saveCred({id:$("gId").value.trim(),pw:$("gPw").value.trim(),ip:$("gIp").value.trim()}); $("gOverlay").style.display="none"; status("가온 계정 저장됨 (이 PC)"); };
+
+// 코드 채번 유틸 (파이썬 이식)
+function splitPrefixNumber(s){ s=String(s).trim(); const m=s.match(/^(.*?)(\d+)$/); return m?[m[1],m[2]]:[s,""]; }
+function hasLeadingZeros(n){ return n.length>1 && n[0]==="0"; }
+
+$("btnGaonAssign").onclick=async ()=>{
+  const cred=loadCred();
+  if(!cred.id||!cred.pw){ alert("먼저 [🔑 가온 계정]에서 아이디/비밀번호를 저장하세요."); $("btnGaonCred").click(); return; }
+  const s=curShipper(), market=(s.가온시장코드||"").trim();
+  if(!market){ alert("현재 화주사의 '가온 시장코드'가 없습니다. [관리/수정]에서 입력하세요."); return; }
+  const btn=$("btnGaonAssign"); btn.disabled=true; status("가온 조회 중...");
+  let r;
+  try{
+    const resp=await fetch("/api/gaon/maxcode",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id:cred.id,pw:cred.pw,ip:cred.ip,marketCode:market})});
+    r=await resp.json();
+  }catch(e){
+    btn.disabled=false; status("");
+    alert("가온 중계 서버 호출 실패: "+e.message+"\n\n· 배포된 서버(http://주소/)에서 실행해야 합니다.\n· 파일을 브라우저로 직접 연 경우엔 작동하지 않습니다.");
+    return;
+  }
+  btn.disabled=false;
+  if(!r.ok){ status(""); alert("가온 조회 실패: "+(r.error||"알 수 없는 오류")); return; }
+  const maxCode=r.maxCode;
+  if(!maxCode){ status(""); alert("해당 시장코드("+market+")에서 기존 점포코드를 찾지 못했습니다."); return; }
+  const [prefix,numStr]=splitPrefixNumber(maxCode);
+  if(!numStr){ status(""); alert("마지막 코드에서 숫자부를 찾을 수 없습니다: "+maxCode); return; }
+  const keepWidth=hasLeadingZeros(numStr), width=numStr.length; let cur=parseInt(numStr,10)+1, n=0;
+  gridData.forEach(row=>{
+    if((row["실배송점포코드"]||"").trim())return;
+    if(!["고객사점포코드","점포명","입력주소"].some(f=>(row[f]||"").trim()))return;
+    const incr=keepWidth?String(cur).padStart(width,"0"):String(cur);
+    row["실배송점포코드"]=prefix+incr; cur++; n++;
+  });
+  renderBody();
+  const startCode=prefix+(keepWidth?String(parseInt(numStr,10)+1).padStart(width,"0"):String(parseInt(numStr,10)+1));
+  status("가온 자동부여 "+n+"건 (마지막 "+maxCode+" → "+startCode+"부터)");
+};
 
 // ===================== 시작 =====================
 refreshShipperSelect();

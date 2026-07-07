@@ -16,15 +16,23 @@ else
   git clone "$REPO" "$DIR"
 fi
 
-echo "[3/4] nginx 설정"
+echo "[3/5] 홈 디렉터리 권한 (nginx 읽기 허용)"
+chmod 755 "$HOME"
+chmod -R a+rX "$DIR"
+
+echo "[4/5] nginx 설정"
 sudo cp "$DIR/deploy/nginx-hanex.conf" /etc/nginx/sites-available/hanex
 sudo ln -sf /etc/nginx/sites-available/hanex /etc/nginx/sites-enabled/hanex
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
-
-echo "[4/4] nginx 재시작"
 sudo systemctl restart nginx
 sudo systemctl enable nginx
+
+echo "[5/5] 가온 중계 서버(systemd) 설치"
+sudo cp "$DIR/deploy/gaon-proxy.service" /etc/systemd/system/gaon-proxy.service
+sudo systemctl daemon-reload
+sudo systemctl enable gaon-proxy
+sudo systemctl restart gaon-proxy
 
 IP=$(curl -s http://checkip.amazonaws.com || echo "<인스턴스 IP>")
 echo "완료! 접속: http://$IP/"
