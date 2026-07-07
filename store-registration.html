@@ -84,6 +84,7 @@
     </div>
     <button class="ghost" id="btnReparse">주소 재파싱</button>
     <button class="ghost" id="btnTrim">빈 행 정리</button>
+    <button class="danger" id="btnDelRows">선택 행 삭제</button>
     <button class="ghost" id="btnClear">전체 지우기</button>
     <span style="display:flex;align-items:center;gap:6px;padding-left:8px;border-left:1px solid var(--line);">
       <span style="font-size:12px;color:var(--sub);font-weight:700;">실배송 접두어</span>
@@ -94,6 +95,7 @@
     <span class="hint">엑셀 파일을 열거나, 복사 후 첫 칸에 Ctrl+V. 주소는 자동 파싱됩니다.</span>
     <span style="margin-left:auto;display:flex;gap:10px;align-items:center;">
       <span class="status ok" id="status"></span>
+      <button class="ghost" id="btnPreview">👁 결과 미리보기</button>
       <button class="ok" id="btnGen">📥 엑셀 생성 (.xlsx)</button>
     </span>
   </div>
@@ -134,21 +136,54 @@
   </div>
 </div>
 
-<!-- 매핑파일 관리 모달 -->
+<!-- 매핑파일 관리 모달 (시트/컬럼 선택 가능) -->
 <div class="overlay" id="maOverlay">
-  <div class="modal">
-    <h2>매핑파일 관리 <span class="tag">서버에 저장 · 모든 PC 공유</span></h2>
+  <div class="modal" style="width:760px;">
+    <h2>통합매핑파일 관리 <span class="tag">서버에 저장 · 모든 PC 공유</span></h2>
     <div id="maCurrent" style="font-size:13px;color:var(--sub);margin-bottom:10px;"></div>
     <div class="frow">
-      <label>새 통합매핑 엑셀 업로드 (시트: 지역코드 / 센터코드 / 비식품센터코드)</label>
+      <label>통합매핑 엑셀 선택 (.xlsx)</label>
       <input type="file" id="maFile" accept=".xlsx">
     </div>
-    <div id="maPreview" style="font-size:12.5px;color:var(--ink);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:none;"></div>
-    <div style="font-size:12px;color:var(--sub);">※ 업로드하면 서버의 기존 매핑을 덮어씁니다(모든 PC 공통). 기존 데이터는 그대로 두려면 닫기.</div>
+    <div id="maConfig" style="display:none;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="flex:1;min-width:200px;"><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">지역코드 시트</label><select id="maShRegion" style="width:100%;"></select></div>
+        <div style="flex:1;min-width:200px;"><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">센터코드(주류) 시트</label><select id="maShLiquor" style="width:100%;"></select></div>
+        <div style="flex:1;min-width:200px;"><label style="font-size:12px;color:var(--sub);font-weight:700;display:block;">비식품센터코드 시트</label><select id="maShNonfood" style="width:100%;"></select></div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <fieldset style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;flex:1;min-width:240px;">
+          <legend style="font-size:12px;color:var(--sub);font-weight:700;">지역 매핑 (시도→지역코드)</legend>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">시도</span><select id="maRgSido" style="flex:1;"></select></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">지역코드</span><select id="maRgCode" style="flex:1;"></select></div>
+        </fieldset>
+        <fieldset style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;flex:1.4;min-width:280px;">
+          <legend style="font-size:12px;color:var(--sub);font-weight:700;">주소 매핑 (주류·비식품 공통)</legend>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">시도</span><select id="maZnSido" style="flex:1;"></select></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">시군구</span><select id="maZnSgg" style="flex:1;"></select></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">읍/면/동</span><select id="maZnEup" style="flex:1;"></select></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">창고코드</span><select id="maZnWhs" style="flex:1;"></select></div>
+          <div style="display:flex;gap:8px;align-items:center;margin:3px 0;"><span style="font-size:12px;width:64px;">지구코드</span><select id="maZnZone" style="flex:1;"></select></div>
+        </fieldset>
+      </div>
+    </div>
+    <div id="maPreview" style="font-size:12.5px;color:var(--ink);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0;display:none;white-space:pre-wrap;"></div>
+    <div style="font-size:12px;color:var(--sub);">※ [서버에 저장] 시 기존 매핑을 덮어씁니다(모든 PC 공통). 안 바꾸려면 닫기.</div>
     <div class="modal-btns">
       <button class="ghost" id="maCancel">닫기</button>
       <button class="ok" id="maSave" disabled>서버에 저장</button>
     </div>
+  </div>
+</div>
+
+<!-- 결과 미리보기 모달 (29컬럼) -->
+<div class="overlay" id="pvOverlay">
+  <div class="modal" style="width:96vw;max-width:1400px;">
+    <h2>결과 미리보기 <span class="tag" id="pvInfo"></span></h2>
+    <div style="overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px;">
+      <table id="pvTable" style="width:max-content;font-size:12px;"><thead></thead><tbody></tbody></table>
+    </div>
+    <div class="modal-btns"><button class="ghost" id="pvCancel">닫기</button></div>
   </div>
 </div>
 
@@ -485,10 +520,18 @@ $("btnFillDeliv").onclick=()=>{
   renderBody(); status("실배송 "+n+"건 채움"+(prefix?" (접두어 "+prefix+")":""));
 };
 
-// ---- 엑셀 생성 ----
-$("btnGen").onclick=()=>{
-  const s=curShipper();
-  const out=[];
+// ---- 선택 행 삭제 ----
+$("btnDelRows").onclick=()=>{
+  if(!selectedRows.size){ alert("삭제할 행을 체크(선택)하세요."); return; }
+  const del=new Set(selectedRows);
+  gridData=gridData.filter((_,i)=>!del.has(i));
+  selectedRows.clear(); ensureRows(); renderBody();
+  status(del.size+"행 삭제됨");
+};
+
+// ---- 29컬럼 결과 배열 (미리보기·생성 공용) ----
+function buildExportRows(){
+  const s=curShipper(); const out=[];
   gridData.forEach(row=>{
     if(!["고객사점포코드","점포명","입력주소"].some(f=>(row[f]||"").trim()))return;
     const o={}; ALL_COLUMNS.forEach(c=>o[c]="");
@@ -506,6 +549,23 @@ $("btnGen").onclick=()=>{
     o["화주코드"]=String(s.화주코드||""); o["매출처코드"]=String(s.매출처코드||""); o["편번호"]=String(s.편번호||"");
     out.push(ALL_COLUMNS.map(c=>{ const v=o[c]; return (v!=null&&String(v).trim()!=="")?String(v).trim():null; }));
   });
+  return out;
+}
+
+// ---- 결과 미리보기 ----
+$("btnPreview").onclick=()=>{
+  const out=buildExportRows();
+  if(!out.length){ alert("미리볼 데이터가 없습니다."); return; }
+  $("pvInfo").textContent=out.length+"건 · "+CFG.selected+" · 29컬럼";
+  $("pvTable").querySelector("thead").innerHTML='<tr>'+ALL_COLUMNS.map(c=>'<th style="padding:4px 6px;white-space:nowrap;">'+c+'</th>').join("")+'</tr>';
+  $("pvTable").querySelector("tbody").innerHTML=out.map(r=>'<tr>'+r.map(v=>'<td style="padding:3px 6px;white-space:nowrap;border:1px solid var(--line);">'+(v==null?"":String(v).replace(/</g,"&lt;"))+'</td>').join("")+'</tr>').join("");
+  $("pvOverlay").style.display="flex";
+};
+$("pvCancel").onclick=()=>$("pvOverlay").style.display="none";
+
+// ---- 엑셀 생성 ----
+$("btnGen").onclick=()=>{
+  const out=buildExportRows();
   if(!out.length){ alert("생성할 데이터가 없습니다."); return; }
   const bytes=writeXlsx(ALL_COLUMNS,out);
   const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
@@ -705,47 +765,80 @@ function readXlsxSheets(buf, names){
   return out;
 }
 function cellClean(v){ if(v==null)return ""; const s=String(v).trim(); return s.toLowerCase()==="nan"?"":s; }
-function parseMappingWorkbook(buf){
-  const sh=readXlsxSheets(buf,["지역코드","센터코드","비식품센터코드"]);
-  const missing=["지역코드","센터코드","비식품센터코드"].filter(n=>!sh[n]||sh[n].length<2);
-  if(missing.length) throw new Error("시트를 찾을 수 없음: "+missing.join(", "));
-  const H=rows=>rows[0].map(x=>String(x==null?"":x).trim());
-  const rH=H(sh["지역코드"]); const ri=matchHeader(rH,["지역","시도"]), rc=matchHeader(rH,["지역코드","코드"]);
-  const region=[]; sh["지역코드"].slice(1).forEach(r=>{ const a=normalizeSido(r[ri]); const b=cleanCode(r[rc]); if(a)region.push([a,b]); });
-  const loadZone=rows=>{
-    const h=H(rows); const iS=matchHeader(h,["시도"]),iG=matchHeader(h,["시군구"]),iE=matchHeader(h,["읍면동","읍/면/동"]),iW=matchHeader(h,["창고코드","창고"]),iZ=matchHeader(h,["지구코드","배송지구코드","지구"]);
-    const out=[]; rows.slice(1).forEach(r=>{ const sido=normalizeSido(r[iS]); const sgg=cellClean(r[iG]); const eup=cellClean(r[iE]).replace(/[()]/g,""); const whs=cleanCode(r[iW]); const zone=cleanCode(r[iZ]); if(!sido&&!sgg)return; out.push([sido,sgg,eup,whs,zone]); });
-    return out;
-  };
-  const liquor=loadZone(sh["센터코드"]), nonfood=loadZone(sh["비식품센터코드"]);
-  return {v:1,region,zone:{liquor,nonfood},counts:{region:region.length,liquor:liquor.length,nonfood:nonfood.length}};
+function openWorkbook(buf){
+  const files=fflate.unzipSync(new Uint8Array(buf)); const dec=new TextDecoder();
+  const shared=parseShared(files,dec); const sm=sheetMap(files,dec);
+  return {files,dec,shared,sm,sheets:Object.keys(sm)};
 }
-let maParsed=null;
+function sheetRows(wb,name){ return (wb&&wb.sm[name])?parseSheetRows(wb.files,wb.sm[name],wb.shared,wb.dec):null; }
+function hdrOf(rows){ return rows&&rows.length?rows[0].map(x=>String(x==null?"":x).trim()):[]; }
+function fillSelect(sel, options, pre){ sel.innerHTML=options.map(o=>'<option'+(o===pre?' selected':'')+'>'+String(o).replace(/</g,"&lt;")+'</option>').join(""); }
+function suggest(h,cands){ const i=matchHeader(h,cands); return (i>=0&&i<h.length)?h[i]:(h[0]||""); }
+
+let maWB=null;
 $("btnMapAdmin").onclick=()=>{
-  maParsed=null; $("maSave").disabled=true; $("maFile").value=""; $("maPreview").style.display="none";
+  maWB=null; $("maSave").disabled=true; $("maFile").value=""; $("maPreview").style.display="none"; $("maConfig").style.display="none";
   $("maCurrent").textContent = MAP&&MAP.counts ? ("현재 서버 매핑 · 지역 "+MAP.counts.region+" / 주류 "+MAP.counts.liquor+" / 비식품 "+MAP.counts.nonfood+"행") : "현재 서버 매핑 없음";
   $("maOverlay").style.display="flex";
 };
 $("maCancel").onclick=()=>$("maOverlay").style.display="none";
+function maPopSheets(){
+  const s=maWB.sheets;
+  const gReg=s.find(x=>x.includes("지역"))||s[0];
+  const gLiq=s.find(x=>x.includes("센터")&&!x.includes("비식품"))||s.find(x=>x.includes("지구"))||s[0];
+  const gNfd=s.find(x=>x.includes("비식품"))||s[0];
+  fillSelect($("maShRegion"),s,gReg); fillSelect($("maShLiquor"),s,gLiq); fillSelect($("maShNonfood"),s,gNfd);
+  maPopCols();
+}
+function maPopCols(){
+  const rh=hdrOf(sheetRows(maWB,$("maShRegion").value));
+  fillSelect($("maRgSido"),rh,suggest(rh,["지역","시도","광역시도"]));
+  fillSelect($("maRgCode"),rh,suggest(rh,["지역코드","코드"]));
+  const zh=hdrOf(sheetRows(maWB,$("maShLiquor").value));
+  fillSelect($("maZnSido"),zh,suggest(zh,["시도"]));
+  fillSelect($("maZnSgg"),zh,suggest(zh,["시군구"]));
+  fillSelect($("maZnEup"),zh,suggest(zh,["읍면동","읍/면/동"]));
+  fillSelect($("maZnWhs"),zh,suggest(zh,["창고코드","창고"]));
+  fillSelect($("maZnZone"),zh,suggest(zh,["지구코드","배송지구코드","지구"]));
+}
+$("maShRegion").onchange=maPopCols;
+$("maShLiquor").onchange=maPopCols;
 $("maFile").onchange=(e)=>{
   const f=e.target.files[0]; if(!f)return;
   const rd=new FileReader();
   rd.onload=()=>{ try{
-    maParsed=parseMappingWorkbook(rd.result);
-    $("maPreview").style.display="block";
-    $("maPreview").textContent="✔ 읽기 성공 → 지역 "+maParsed.counts.region+" / 주류(센터코드) "+maParsed.counts.liquor+" / 비식품 "+maParsed.counts.nonfood+"행. [서버에 저장]을 누르면 반영됩니다.";
-    $("maSave").disabled=false;
-  }catch(err){ maParsed=null; $("maSave").disabled=true; $("maPreview").style.display="block"; $("maPreview").textContent="✖ 읽기 실패: "+err.message; } };
+    maWB=openWorkbook(rd.result);
+    if(!maWB.sheets.length) throw new Error("시트가 없습니다.");
+    maPopSheets();
+    $("maConfig").style.display="block"; $("maSave").disabled=false;
+    $("maPreview").style.display="none";
+  }catch(err){ maWB=null; $("maSave").disabled=true; $("maConfig").style.display="none"; $("maPreview").style.display="block"; $("maPreview").textContent="✖ 파일 읽기 실패: "+err.message; } };
   rd.readAsArrayBuffer(f);
 };
+function maParse(){
+  const idx=(h,name)=>h.indexOf(name);
+  const rrows=sheetRows(maWB,$("maShRegion").value); const rh=hdrOf(rrows);
+  const iRS=idx(rh,$("maRgSido").value), iRC=idx(rh,$("maRgCode").value);
+  const region=[]; rrows.slice(1).forEach(r=>{ const a=normalizeSido(r[iRS]); const b=cleanCode(r[iRC]); if(a)region.push([a,b]); });
+  const parseZone=(sheet)=>{ const zrows=sheetRows(maWB,sheet); if(!zrows)return []; const zh=hdrOf(zrows);
+    const iS=idx(zh,$("maZnSido").value),iG=idx(zh,$("maZnSgg").value),iE=idx(zh,$("maZnEup").value),iW=idx(zh,$("maZnWhs").value),iZ=idx(zh,$("maZnZone").value);
+    const out=[]; zrows.slice(1).forEach(r=>{ const sido=normalizeSido(r[iS]); const sgg=cellClean(r[iG]); const eup=cellClean(r[iE]).replace(/[()]/g,""); const whs=cleanCode(r[iW]); const zone=cleanCode(r[iZ]); if(!sido&&!sgg)return; out.push([sido,sgg,eup,whs,zone]); }); return out; };
+  const liquor=parseZone($("maShLiquor").value), nonfood=parseZone($("maShNonfood").value);
+  return {v:1,region,zone:{liquor,nonfood},counts:{region:region.length,liquor:liquor.length,nonfood:nonfood.length}};
+}
 $("maSave").onclick=async ()=>{
-  if(!maParsed)return; $("maSave").disabled=true; $("maPreview").textContent="서버에 저장 중…";
+  if(!maWB)return;
+  $("maSave").disabled=true; $("maPreview").style.display="block"; $("maPreview").textContent="파싱 중…";
+  let parsed;
+  try{ parsed=maParse(); }catch(err){ $("maSave").disabled=false; $("maPreview").textContent="✖ 파싱 실패: "+err.message; return; }
+  if(!parsed.region.length && !parsed.zone.liquor.length){ $("maSave").disabled=false; $("maPreview").textContent="✖ 데이터가 비었습니다. 시트/컬럼 선택을 확인하세요."; return; }
+  $("maPreview").textContent="서버 저장 중… (지역 "+parsed.counts.region+" / 주류 "+parsed.counts.liquor+" / 비식품 "+parsed.counts.nonfood+")";
   try{
-    const resp=await fetch("/api/mapping",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(maParsed)});
+    const resp=await fetch("/api/mapping",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(parsed)});
     const r=await resp.json();
     if(!r.ok)throw new Error(r.error||"저장 실패");
-    MAP=maParsed; buildMapDicts(); mapInfo();
-    $("maOverlay").style.display="none"; status("매핑파일 서버 저장 완료 (모든 PC 공통)");
+    MAP=parsed; buildMapDicts(); mapInfo();
+    $("maOverlay").style.display="none"; status("매핑파일 서버 저장 완료 · 지역 "+parsed.counts.region+" / 주류 "+parsed.counts.liquor+" / 비식품 "+parsed.counts.nonfood);
   }catch(e){ $("maSave").disabled=false; $("maPreview").textContent="✖ 저장 실패: "+e.message+"\n(배포 서버에서만 저장 가능)"; }
 };
 
