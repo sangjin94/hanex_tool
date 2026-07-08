@@ -423,11 +423,9 @@ function refreshAutofill(){
     $("prefixList").innerHTML=(CURRENT.prefixes||[]).map(p=>'<option value="'+p.replace(/"/g,"&quot;")+'">').join("");
     $("tbPrefix").value=CURRENT.ownPrefix||(CURRENT.prefixes&&CURRENT.prefixes[0])||"";
     $("btnFillOwn").textContent="자사코드 채우기";
-    $("fillHint").style.display="inline";
   }else if(m==="same"){
     af.style.display="flex"; $("prefixLabel").style.display="none"; $("tbPrefix").style.display="none"; $("prefixList").innerHTML="";
     $("btnFillOwn").textContent="자사코드 채우기 (고객사코드와 동일)";
-    $("fillHint").style.display="inline";
   }else{ af.style.display="none"; }  // input(직접입력) / seq(준비중)
 }
 function fillOwnCodes(){
@@ -444,7 +442,8 @@ function fillOwnCodes(){
   renderGridBody();
   $("status").textContent="✔ 자사코드 "+n+"건 채움";
 }
-$("tbPrefix").addEventListener("input",(e)=>{ CURRENT.ownPrefix=e.target.value.trim(); saveConfig(CFG); renderInfo(); });
+// 툴바 접두어는 '이번 채우기용 임시값'일 뿐 — 화주사에 저장된 기본 접두어(접두어 목록)는
+// 관리/컬럼설정 창에서만 바뀜(점포등록 방식). 툴바에서 바꿔도 저장값은 그대로 유지됨.
 $("btnFillOwn").onclick=fillOwnCodes;
 
 $("btnAddRows").onclick=()=>{
