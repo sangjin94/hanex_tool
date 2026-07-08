@@ -36,6 +36,8 @@
   td input{border:none;border-radius:0;width:150px;padding:6px 8px;font-size:13px;background:transparent;}
   td input:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#fff;}
   td input.owncol{background:#f8fafc;}
+  td input.defcol{background:#fefce8;}
+  th .def{font-size:10px;color:#92400e;font-weight:600;background:#fef3c7;padding:1px 5px;border-radius:4px;}
   th .auto{font-size:10px;color:#1d4ed8;font-weight:600;background:#dbeafe;padding:1px 5px;border-radius:4px;}
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
   .hint{font-size:12px;color:var(--sub);}
@@ -229,7 +231,9 @@ function buildArrays(p, inputHeaders, rows){
   rows.forEach((r,ri)=>{
     const vals={};
     inputHeaders.forEach((h,i)=>{ vals[h]=(r[i]!=null?String(r[i]).trim():""); });
-    if(!Object.values(vals).some(v=>v!=="")) return; // 빈 행
+    // 빈 행 판정: 기본값(입력+고정값)만 채워진 행은 빈 행으로 간주
+    const hasReal=inputHeaders.some(h=>{ const c=cols[h]; const isDef=(h!==OWN && c && c.mode==="input" && (c.value||"").trim()!==""); return !isDef && vals[h]!==""; });
+    if(!hasReal) return;
     const missing=inputHeaders.filter(h=>h!==OWN && cols[h].required && !vals[h]);
     if(missing.length){ errors.push((ri+1)+"행: "+missing.join(", ")+" 누락"); return; }
     const resolve=(h)=>{
@@ -326,9 +330,18 @@ function renderMemo(){
 
 // ===================== UI: 그리드 =====================
 const INIT_ROWS=10;
+// 입력 컬럼인데 고정값(기본값)이 설정된 열 → 그리드에 미리 채워서 보이게(행마다 수정 가능)
+function isDefaultCol(col){ const c=CURRENT.cols[col]; return col!==OWN && c && c.mode==="input" && (c.value||"").trim()!==""; }
+function newRow(){
+  const row=new Array(INPUT_HEADERS.length).fill("");
+  INPUT_HEADERS.forEach((col,i)=>{ if(isDefaultCol(col)) row[i]=CURRENT.cols[col].value; });
+  return row;
+}
+// 실제 데이터가 있는 행인지(기본값만 채워진 행은 빈 행으로 간주)
+function rowHasData(r){ return INPUT_HEADERS.some((col,i)=>!isDefaultCol(col) && String(r[i]==null?"":r[i]).trim()!==""); }
 function buildGrid(){
   gridData=[];
-  for(let i=0;i<INIT_ROWS;i++) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+  for(let i=0;i<INIT_ROWS;i++) gridData.push(newRow());
   renderGridHead(); renderGridBody(); $("status").textContent="";
 }
 function renderGridHead(){
@@ -341,7 +354,8 @@ function renderGridHead(){
       h+='<th>자사상품코드'+auto+'</th>';
     }else{
       const req=(CURRENT.cols[col] && CURRENT.cols[col].required)?' <span class="req">*</span>':'';
-      h+='<th>'+col+req+'</th>';
+      const def=isDefaultCol(col)?' <span class="def">기본값</span>':'';
+      h+='<th>'+col+req+def+'</th>';
     }
   });
   h+='</tr>'; thead.innerHTML=h;
@@ -354,7 +368,7 @@ function renderGridBody(){
     if(INPUT_HEADERS.length===0) html+='<td></td>';
     INPUT_HEADERS.forEach((col,ec)=>{
       const v=row[ec]!=null?String(row[ec]):"";
-      const cls=(col===OWN)?' class="owncol"':'';
+      const cls=(col===OWN)?' class="owncol"':(isDefaultCol(col)?' class="defcol"':'');
       html+='<td><input'+cls+' data-r="'+r+'" data-ec="'+ec+'" value="'+v.replace(/"/g,"&quot;")+'"></td>';
     });
     html+='</tr>';
@@ -393,7 +407,7 @@ $("grid").addEventListener("paste",(e)=>{
     cells.forEach((val,j)=>{
       const tgt=targets[startIdx+j]; if(!tgt) return;
       const rr=startR+i;
-      while(gridData.length<=rr) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+      while(gridData.length<=rr) gridData.push(newRow());
       gridData[rr][tgt.ec]=val.trim();
     });
   });
@@ -435,10 +449,10 @@ $("btnFillOwn").onclick=fillOwnCodes;
 
 $("btnAddRows").onclick=()=>{
   const cnt=Math.max(1, parseInt($("addRowsCount").value)||5);
-  for(let i=0;i<cnt;i++) gridData.push(new Array(INPUT_HEADERS.length).fill(""));
+  for(let i=0;i<cnt;i++) gridData.push(newRow());
   renderGridBody();
 };
-$("btnTrim").onclick=()=>{ gridData=gridData.filter(r=>r.some(x=>String(x).trim())); if(!gridData.length) gridData.push(new Array(INPUT_HEADERS.length).fill("")); renderGridBody(); };
+$("btnTrim").onclick=()=>{ gridData=gridData.filter(rowHasData); if(!gridData.length) gridData.push(newRow()); renderGridBody(); };
 $("btnClear").onclick=()=>{ buildGrid(); };
 
 // ===================== 생성 =====================
