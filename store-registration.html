@@ -33,14 +33,17 @@
   .status{font-size:13px;font-weight:700;}
   .gridwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px;overflow:auto;max-height:60vh;}
   table{border-collapse:collapse;font-size:13px;}
-  th,td{border:1px solid var(--line);padding:0;}
-  th{background:#f1f5f9;font-weight:700;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2;text-align:left;}
+  #grid{table-layout:fixed;}
+  th,td{border:1px solid var(--line);padding:0;overflow:hidden;}
+  th{background:#f1f5f9;font-weight:700;padding:6px 8px;white-space:nowrap;position:sticky;top:0;z-index:2;text-align:left;text-overflow:ellipsis;}
+  th .rzh{position:absolute;top:0;right:0;width:9px;height:100%;cursor:col-resize;z-index:5;}
+  th .rzh:hover{background:var(--brand);opacity:.35;}
   th.rownum{background:#e2e8f0;}
   th.rownum label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
   td.cellno{padding:0;color:#94a3b8;font-size:12px;background:#f8fafc;}
   td.cellno label.rowselL{display:flex;align-items:center;gap:7px;justify-content:flex-end;cursor:pointer;padding:8px 10px;}
   .rowsel,#selAll{width:18px;height:18px;cursor:pointer;flex:none;accent-color:var(--brand);}
-  td input{border:none;border-radius:0;width:140px;padding:6px 8px;font-size:13px;background:transparent;}
+  td input{border:none;border-radius:0;width:100%;padding:6px 8px;font-size:13px;background:transparent;}
   td input:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#fff;}
   td input.parse{background:#f8fafc;color:#475569;} td input.code{background:#fffdf5;}
   th .p{font-size:10px;color:#0369a1;font-weight:600;background:#e0f2fe;padding:1px 5px;border-radius:4px;}
@@ -250,6 +253,10 @@ const PARSE_F=new Set(["시도","시군구","읍면동"]);
 const CODE_F=new Set(["지역코드","창고코드","배송지구코드","실배송점포코드"]);
 const WIDE={"입력주소":260,"점포명":150};
 const NARROW=new Set(["시도","시군구","읍면동","지역코드","창고코드","배송지구코드"]);
+// 컬럼 너비(드래그 조절, PC별 저장)
+let COLW={}; try{ COLW=JSON.parse(localStorage.getItem("store_colw_v1"))||{}; }catch(e){ COLW={}; }
+function defW(key){ if(key==="#")return 56; if(WIDE[key])return WIDE[key]; if(NARROW.has(key))return 96; return 140; }
+function colW(key){ return COLW[key]||defW(key); }
 
 const SIDO={
   "강원":"강원도","강원도":"강원도","경기":"경기도","경기도":"경기도",
@@ -493,13 +500,33 @@ function selectShipper(name){ CFG.selected=name; saveCfg(); renderFixed(); apply
 
 // ---- 그리드 렌더 ----
 function renderHead(){
-  let h='<tr><th class="rownum"><label><input type="checkbox" id="selAll" title="전체 선택"> #</label></th>';
-  FIELDS.forEach(f=>{
+  const grid=$("grid"), keys=["#"].concat(FIELDS);
+  // colgroup (컬럼 너비)
+  const old=grid.querySelector("colgroup"); if(old) old.remove();
+  const cg=document.createElement("colgroup");
+  cg.innerHTML=keys.map(k=>'<col style="width:'+colW(k)+'px">').join("");
+  grid.insertBefore(cg, grid.firstChild);
+  syncTableWidth();
+  // thead (리사이즈 핸들 포함)
+  let h='<tr><th class="rownum"><label><input type="checkbox" id="selAll" title="전체 선택"> #</label><span class="rzh" data-i="0" data-k="#"></span></th>';
+  FIELDS.forEach((f,fi)=>{
     let badge=""; if(PARSE_F.has(f))badge=' <span class="p">파싱</span>'; else if(CODE_F.has(f))badge=' <span class="c">코드</span>';
-    h+='<th>'+f+badge+'</th>';
+    h+='<th>'+f+badge+'<span class="rzh" data-i="'+(fi+1)+'" data-k="'+f+'"></span></th>';
   });
-  h+='</tr>'; $("grid").querySelector("thead").innerHTML=h;
+  h+='</tr>'; grid.querySelector("thead").innerHTML=h;
 }
+// 테이블 전체 너비 = 컬럼 합(고정 레이아웃이 각 너비를 지키고 넘치면 가로 스크롤)
+function syncTableWidth(){ const g=$("grid"); let t=0; g.querySelectorAll("colgroup col").forEach(c=>t+=(parseInt(c.style.width)||0)); g.style.width=t+"px"; }
+// 컬럼 너비 드래그
+let _rz=null;
+$("grid").addEventListener("mousedown",(e)=>{
+  const h=e.target.closest(".rzh"); if(!h)return;
+  const cols=$("grid").querySelectorAll("colgroup col"); const col=cols[+h.dataset.i]; if(!col)return;
+  _rz={col,key:h.dataset.k,startX:e.clientX,startW:parseInt(col.style.width)||col.offsetWidth};
+  document.body.style.cursor="col-resize"; e.preventDefault(); e.stopPropagation();
+});
+window.addEventListener("mousemove",(e)=>{ if(!_rz)return; _rz.col.style.width=Math.max(40,_rz.startW+(e.clientX-_rz.startX))+"px"; syncTableWidth(); });
+window.addEventListener("mouseup",()=>{ if(!_rz)return; COLW[_rz.key]=parseInt(_rz.col.style.width); localStorage.setItem("store_colw_v1",JSON.stringify(COLW)); document.body.style.cursor=""; _rz=null; });
 function renderBody(){
   let html="";
   gridData.forEach((row,r)=>{
@@ -507,8 +534,7 @@ function renderBody(){
     FIELDS.forEach(f=>{
       const v=(row[f]!=null?String(row[f]):"").replace(/"/g,"&quot;");
       const cls=PARSE_F.has(f)?' class="parse"':(CODE_F.has(f)?' class="code"':'');
-      const w=WIDE[f]?(' style="width:'+WIDE[f]+'px"'):(NARROW.has(f)?' style="width:90px"':'');
-      html+='<td><input'+cls+w+' data-r="'+r+'" data-f="'+f+'" value="'+v+'"></td>';
+      html+='<td><input'+cls+' data-r="'+r+'" data-f="'+f+'" value="'+v+'"></td>';
     });
     html+='</tr>';
   });
@@ -521,8 +547,8 @@ function buildGrid(){ gridData=[]; selectedRows.clear(); ensureRows(); renderHea
 $("grid").addEventListener("input",(e)=>{ const t=e.target; if(t.tagName!=="INPUT")return; const r=+t.dataset.r,f=t.dataset.f; if(gridData[r])gridData[r][f]=t.value; });
 $("grid").addEventListener("change",(e)=>{
   const t=e.target; if(t.tagName!=="INPUT")return;
-  if(t.id==="selAll"){ if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear(); renderBody(); return; }
-  if(t.classList.contains("rowsel")){ const r=+t.dataset.r; if(t.checked)selectedRows.add(r); else selectedRows.delete(r); return; }
+  if(t.id==="selAll"){ if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear(); renderBody(); mmSyncInfo(); return; }
+  if(t.classList.contains("rowsel")){ const r=+t.dataset.r; if(t.checked)selectedRows.add(r); else selectedRows.delete(r); mmSyncInfo(); return; }
   if(t.dataset.f==="입력주소"){
     const r=+t.dataset.r; const [a,b,c]=splitAddress(gridData[r]["입력주소"]||"");
     gridData[r]["시도"]=a; gridData[r]["시군구"]=b; gridData[r]["읍면동"]=c; renderBody();
@@ -776,6 +802,7 @@ $("btnUnmapped").onclick=()=>{
 
 // ---- 수동 매핑 팝업 ----
 let mmFiltered=[], mmSel=-1;
+function mmSyncInfo(){ if($("mmOverlay").style.display==="flex") $("mmInfo").textContent="선택 행 "+selectedRows.size+"개"; }
 function openManualMap(){
   if(!MAP){ alert("매핑 데이터가 없습니다."); return; }
   const Z=activeZone();
@@ -825,7 +852,9 @@ $("mmApply").onclick=()=>{
   const targets=selectedRows.size?[...selectedRows]:[];
   if(!targets.length){ alert("적용할 행을 그리드에서 체크(선택)하세요.\n[미매핑 행 선택]을 먼저 눌러도 됩니다."); return; }
   let n=0; targets.forEach(i=>{ if(gridData[i]){ gridData[i]["창고코드"]=whs; gridData[i]["배송지구코드"]=zone; n++; } });
-  renderBody(); $("mmOverlay").style.display="none"; status("수동 매핑 적용 "+n+"행 (창고 "+whs+" / 지구 "+zone+")");
+  selectedRows.clear(); renderBody();   // 적용 후 체크 자동 해제 (패널은 열어둬 연속 작업)
+  $("mmInfo").textContent="✔ "+n+"행 적용됨 · 선택 0개 (다음 행 선택 후 다시 적용)";
+  status("수동 매핑 적용 "+n+"행 (창고 "+whs+" / 지구 "+zone+")");
 };
 $("btnManualMap").onclick=openManualMap;
 
