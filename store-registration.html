@@ -545,6 +545,23 @@ function buildGrid(){ gridData=[]; selectedRows.clear(); ensureRows(); renderHea
 
 // ---- 입력/붙여넣기 이벤트 ----
 $("grid").addEventListener("input",(e)=>{ const t=e.target; if(t.tagName!=="INPUT")return; const r=+t.dataset.r,f=t.dataset.f; if(gridData[r])gridData[r][f]=t.value; });
+// 화살표/Enter 로 셀 간 포커스 이동 (엑셀처럼)
+$("grid").addEventListener("keydown",(e)=>{
+  const t=e.target; if(t.tagName!=="INPUT"||t.dataset.f==null)return;
+  const r=+t.dataset.r, fi=FIELDS.indexOf(t.dataset.f);
+  const go=(rr,ff,pos)=>{
+    const field=FIELDS[ff]; if(field==null)return false;
+    const el=$("grid").querySelector('input[data-r="'+rr+'"][data-f="'+CSS.escape(field)+'"]');
+    if(!el)return false;
+    el.focus();
+    try{ const p= pos==="end"?el.value.length : (pos==="start"?0:null); if(p!=null) el.setSelectionRange(p,p); }catch(_){}
+    return true;
+  };
+  if(e.key==="ArrowDown"||e.key==="Enter"){ if(go(r+1,fi,"end")) e.preventDefault(); }
+  else if(e.key==="ArrowUp"){ if(go(r-1,fi,"end")) e.preventDefault(); }
+  else if(e.key==="ArrowLeft"){ if(t.selectionStart===0&&t.selectionEnd===0){ if(go(r,fi-1,"end")) e.preventDefault(); } }
+  else if(e.key==="ArrowRight"){ if(t.selectionStart===t.value.length&&t.selectionEnd===t.value.length){ if(go(r,fi+1,"start")) e.preventDefault(); } }
+});
 $("grid").addEventListener("change",(e)=>{
   const t=e.target; if(t.tagName!=="INPUT")return;
   if(t.id==="selAll"){ if(t.checked) gridData.forEach((_,i)=>selectedRows.add(i)); else selectedRows.clear(); renderBody(); mmSyncInfo(); return; }
