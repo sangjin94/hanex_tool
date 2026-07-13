@@ -11,8 +11,10 @@ import os
 import json
 import re
 import shutil
+import socket
 import http.cookiejar
 import urllib.request
+import urllib.error
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -101,7 +103,7 @@ def fetch_max_store_code(user_id, user_pwd, client_ip, market_code):
 </Root>"""
     req = urllib.request.Request(LOGIN_URL, data=login_payload.encode("utf-8"),
                                  headers={"Content-Type": "text/xml"})
-    with opener.open(req, timeout=20) as res:
+    with opener.open(req, timeout=30) as res:
         text = res.read().decode("utf-8", "replace")
     if not re.search(r"ErrorCode=0", text):
         return None, "로그인 실패 (아이디/비밀번호 확인)"
@@ -156,10 +158,21 @@ def fetch_max_store_code(user_id, user_pwd, client_ip, market_code):
         </Rows>
     </Dataset>
 </Root>"""
+    # 큰 화주(예: 스타로지스)는 점포 전체 목록을 받아오느라 응답이 느리다.
+    # 30초로는 경계선에서 간헐적으로 시간초과가 나므로 넉넉히 주고, 한 번 재시도한다.
     req2 = urllib.request.Request(QUERY_URL, data=query_payload.encode("utf-8"),
                                   headers={"Content-Type": "text/xml"})
-    with opener.open(req2, timeout=30) as res2:
-        content = res2.read()
+    content = None
+    last_err = None
+    for attempt in range(2):
+        try:
+            with opener.open(req2, timeout=150) as res2:
+                content = res2.read()
+            break
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as e:
+            last_err = e
+    if content is None:
+        return None, "점포 조회 시간초과 (화주 점포 수가 많습니다): " + str(last_err)
 
     ns = {"ns": "http://www.nexacroplatform.com/platform/dataset"}
     try:
