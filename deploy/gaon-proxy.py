@@ -25,7 +25,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 GAON_HOST = os.environ.get("GAON_HOST", "https://gaon.hanex.co.kr")
 LOGIN_URL = GAON_HOST + "/hanex/ex/login.do"
 QUERY_URL = GAON_HOST + "/hanex//dynamicService.do"
-ADDR_URL = GAON_HOST + "/hanex/wms/addrPostSet.do"
 ITEM_UPLOAD_URL = GAON_HOST + "/hanex/wms/ifItemUpload.do"
 NS = {"ns": "http://www.nexacroplatform.com/platform/dataset"}
 COMPANY_LOGIN = "100"
@@ -271,114 +270,6 @@ def dynamic_service_xml(services, user_id, client_ip, prog_id, remark, extra_dat
 </Root>""".encode("utf-8")
 
 
-# ===================== 점포 직접 등록 (P000000253 화면 재현) =====================
-# (컬럼ID, 타입, 크기) — 가온 화면의 dsList/dsStores 와 같은 순서
-STORE_COLUMNS = [
-    ("OTHER_COMPANY_STORE_CODE", "string", 100), ("STORE_CODE", "string", 10), ("STORE_NAME", "string", 50),
-    ("INPUT_ZIPNO", "string", 7), ("INPUT_ADDR", "string", 150), ("ADDRPART1", "string", 100), ("ZIPNO", "string", 7),
-    ("TELEPHONE_NO", "string", 40), ("FAX_NO", "string", 15), ("HP_NO", "string", 15),
-    ("IDENTIFICATION_NO", "string", 15), ("MANAGER_NAME", "string", 30),
-    ("BUSINESS_CONDITIONS", "string", 50), ("BUSINESS_ITEM", "string", 50),
-    ("OTHER_COMPANY_SELLER_CODE", "string", 10), ("OTHER_COMPANY_SELLER_NAME", "string", 30),
-    ("OTHER_COMPANY_SELLER_HP", "string", 25), ("OTHER_COMPANY_SELLER_EMAIL", "string", 32),
-    ("MARKET_CODE", "string", 5), ("BUSINESS_FLAG", "string", 3), ("AREA_CODE", "string", 2),
-    ("STORE_USER", "string", 30), ("REQ_TIME", "string", 6), ("SECRETE_MANAGEMENT_FLAG", "string", 1),
-    ("DELIVERY_STORE_TYPE", "string", 5), ("TOTAL_STORE_CODE", "string", 10), ("TURN_NUMBER", "string", 2),
-    ("WAREHOUSE_CODE", "string", 10), ("DELIVERY_REGION_CODE", "string", 5),
-    ("COORD_X", "bigdecimal", 32), ("COORD_Y", "bigdecimal", 32), ("CHK", "string", 1),
-    ("CURRROW", "bigdecimal", 39), ("DUTYFREE", "string", 1), ("OLD_OTHER_STORE_CODE", "string", 100),
-]
-STORE_COLUMN_IDS = {c[0] for c in STORE_COLUMNS}
-MAX_STORE_ROWS = 5000
-REGIST_SVC = "Mdm.Wms.P000000253_storeRegist_I"
-
-
-def store_dataset_xml(ds_id, rows, row_type=None):
-    info = "".join(f'<Column id="{c}" type="{t}" size="{n}"/>' for c, t, n in STORE_COLUMNS)
-    attr = f' type="{row_type}"' if row_type else ""
-    body = []
-    for r in rows:
-        cols = "".join(f'<Col id="{c}">{xml_esc(str(r[c]))}</Col>' for c, _, _ in STORE_COLUMNS
-                       if str(r.get(c, "") or "").strip())
-        body.append(f"<Row{attr}>{cols}</Row>")
-    return f'<Dataset id="{ds_id}"><ColumnInfo>{info}</ColumnInfo><Rows>{"".join(body)}</Rows></Dataset>'
-
-
-def clean_store_rows(rows):
-    """브라우저가 보낸 행에서 정의된 컬럼만 남긴다. CHK/CURRROW 는 화면과 동일하게 채운다."""
-    out = []
-    for i, r in enumerate(rows):
-        row = {k: str(v).strip() for k, v in r.items() if k in STORE_COLUMN_IDS and v not in (None, "")}
-        row["CHK"] = "1"
-        row["CURRROW"] = str(i)
-        out.append(row)
-    return out
-
-
-def refine_store_addresses(opener, rows):
-    """가온 주소정제. 입력주소 → ADDRPART1/ZIPNO/좌표가 채워진 행 목록"""
-    payload = ('<?xml version="1.0" encoding="UTF-8"?>'
-               '<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
-               '<Parameters><Parameter id="__tcsFormId">P000000253</Parameter></Parameters>'
-               + store_dataset_xml("dsList", rows) + "</Root>")
-    code, msg, sets = parse_gaon_response(post_gaon(opener, ADDR_URL, payload.encode("utf-8")))
-    if code != "0":
-        raise RuntimeError("주소정제 실패: " + (msg or code))
-    return sets.get("dsList", [])
-
-
-def prepare_stores(user_id, user_pwd, client_ip, market_code, rows):
-    """등록 전 점검: 기존 점포코드 중복 확인 + 주소정제. 점포 데이터는 쓰지 않는다."""
-    opener, err = gaon_login(user_id, user_pwd)
-    if err:
-        return {"ok": False, "error": err}
-    codes, err = fetch_market_stores(opener, user_id, client_ip, market_code)
-    if err:
-        return {"ok": False, "error": err}
-    exist = set(codes)
-    refined = {r.get("CURRROW"): r for r in refine_store_addresses(opener, rows)}
-    result = []
-    for r in rows:
-        row = refined.get(r["CURRROW"]) or r
-        if r.get("STORE_CODE") in exist:
-            status, note = "dup", "이미 가온에 있는 점포코드"
-        elif not (row.get("ADDRPART1") or "").strip() or not (row.get("ZIPNO") or "").strip():
-            status, note = "addr", "주소 정제 실패 (주소 확인 필요)"
-        else:
-            status, note = "ok", ""
-        result.append({"row": row, "status": status, "note": note})
-    return {"ok": True, "rows": result}
-
-
-def register_stores(user_id, user_pwd, client_ip, rows):
-    """점포 등록 저장 (P000000253_storeRegist_I). 가온 운영 데이터에 실제로 들어간다."""
-    opener, err = gaon_login(user_id, user_pwd)
-    if err:
-        return {"ok": False, "error": err}
-    codes = ",".join(r.get("STORE_CODE", "") for r in rows)
-    payload = dynamic_service_xml(
-        [(REGIST_SVC, "dsInputData=dsStores gdsComIn=gdsComIn", "dsInputData=dsStores:U gdsComIn=gdsComIn", "")],
-        user_id, client_ip, "P000000253", f"[SVC] {REGIST_SVC} :: {len(rows)}건 :: STORE_CODE={codes}",
-        store_dataset_xml("dsStores", rows, "insert"))
-    code, msg, sets = parse_gaon_response(post_gaon(opener, QUERY_URL, payload, timeout=180))
-    if code != "0":
-        return {"ok": False, "error": msg or ("ErrorCode " + code)}
-    done = [r for r in sets.get("RESULT_P000000253_storeRegist_I", []) if int(r.get("ROWINDEX") or -1) >= 0]
-    return {"ok": True, "inserted": len(done), "requested": len(rows)}
-
-
-def verify_stores(user_id, user_pwd, client_ip, market_code, codes):
-    """등록 후 확인: 요청한 점포코드가 가온 점포목록에 실제로 있는지"""
-    opener, err = gaon_login(user_id, user_pwd)
-    if err:
-        return {"ok": False, "error": err}
-    found, err = fetch_market_stores(opener, user_id, client_ip, market_code)
-    if err:
-        return {"ok": False, "error": err}
-    exist = set(found)
-    return {"ok": True, "found": [c for c in codes if c in exist], "missing": [c for c in codes if c not in exist]}
-
-
 # ===================== 상품 인터페이스 업로드 (P000000386 화면 재현) =====================
 ITEM_SEARCH_SVC = "Mdm.Wms.P000000386_upItemNew_S"
 
@@ -470,7 +361,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(200, {"ok": False, "error": "저장 실패: " + str(e)})
             return
-        if path.startswith("/api/gaon/store/") or path.startswith("/api/gaon/item/"):
+        if path.startswith("/api/gaon/item/"):
             self._handle_register(path)
             return
         if path != "/api/gaon/maxcode":
@@ -521,16 +412,6 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/gaon/item/upload":
                 file_data = base64.b64decode(str(data.get("fileBase64", "")))
                 self._send(200, upload_item_file(uid, pw, ip, mk, str(data.get("fileName", "")), file_data))
-            elif path == "/api/gaon/store/verify":
-                self._send(200, verify_stores(uid, pw, ip, mk, [str(c) for c in data.get("codes", [])]))
-            elif path in ("/api/gaon/store/prepare", "/api/gaon/store/register"):
-                rows = clean_store_rows(data.get("rows") or [])
-                if not rows or len(rows) > MAX_STORE_ROWS:
-                    self._send(400, {"ok": False, "error": f"행 수 오류 (1~{MAX_STORE_ROWS}건)"})
-                elif path.endswith("/prepare"):
-                    self._send(200, prepare_stores(uid, pw, ip, mk, rows))
-                else:
-                    self._send(200, register_stores(uid, pw, ip, rows))
             else:
                 self._send(404, {"ok": False, "error": "not found"})
         except Exception as e:

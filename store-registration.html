@@ -108,7 +108,7 @@
       <span class="status ok" id="status"></span>
       <button class="ghost" id="btnPreview">👁 결과 미리보기</button>
       <button class="ok" id="btnGen">📥 엑셀 생성 (.xlsx)</button>
-      <button class="primary" id="btnGaonReg">🚀 가온 바로 등록</button>
+      <button class="primary" id="btnGaonCopy">📋 가온 Import용 복사</button>
     </span>
   </div>
 
@@ -201,21 +201,6 @@
       <table id="pvTable" style="width:max-content;font-size:12px;"><thead></thead><tbody></tbody></table>
     </div>
     <div class="modal-btns"><button class="ghost" id="pvCancel">닫기</button></div>
-  </div>
-</div>
-
-<!-- 가온 바로 등록 모달 -->
-<div class="overlay" id="grOverlay">
-  <div class="modal" style="width:96vw;max-width:1200px;">
-    <h2>가온 바로 등록 <span class="tag" id="grInfo"></span></h2>
-    <div class="hint" id="grMsg" style="margin-bottom:8px;"></div>
-    <div style="overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:8px;">
-      <table id="grTable" style="width:100%;font-size:12px;"><thead></thead><tbody></tbody></table>
-    </div>
-    <div class="modal-btns">
-      <button class="ghost" id="grCancel">닫기</button>
-      <button class="primary" id="grSubmit">등록</button>
-    </div>
   </div>
 </div>
 
@@ -691,109 +676,35 @@ $("btnPreview").onclick=()=>{
 $("pvCancel").onclick=()=>$("pvOverlay").style.display="none";
 
 // ---- 엑셀 생성 ----
+function storeFileName(n){
+  const d=new Date(),p=x=>String(x).padStart(2,"0");
+  return "점포등록_"+CFG.selected+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+n+"건.xlsx";
+}
 $("btnGen").onclick=()=>{
   const out=buildExportRows();
   if(!out.length){ alert("생성할 데이터가 없습니다."); return; }
   const bytes=writeXlsx(ALL_COLUMNS,out);
   const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const d=new Date(),p=n=>String(n).padStart(2,"0");
-  const fname="점포등록_"+CFG.selected+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+out.length+"건.xlsx";
+  const fname=storeFileName(out.length);
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   status("생성 완료 ("+out.length+"건)");
 };
 
-// ---- 가온 바로 등록 (엑셀 업로드 → 주소정제 → 저장 화면 흐름을 그대로 처리) ----
-// 29컬럼 순서 → 가온 컬럼ID (화면이 엑셀을 위치 기준으로 읽는 매핑과 동일)
-const GAON_COLUMN_IDS=[
-  "OTHER_COMPANY_STORE_CODE","STORE_CODE","STORE_NAME","INPUT_ZIPNO","INPUT_ADDR","TELEPHONE_NO","FAX_NO","HP_NO",
-  "IDENTIFICATION_NO","MANAGER_NAME","BUSINESS_CONDITIONS","BUSINESS_ITEM","OTHER_COMPANY_SELLER_CODE","OTHER_COMPANY_SELLER_NAME","OTHER_COMPANY_SELLER_HP","OTHER_COMPANY_SELLER_EMAIL",
-  "MARKET_CODE","BUSINESS_FLAG","AREA_CODE","STORE_USER","REQ_TIME","SECRETE_MANAGEMENT_FLAG","DELIVERY_STORE_TYPE",
-  "TOTAL_STORE_CODE","TURN_NUMBER","WAREHOUSE_CODE","DELIVERY_REGION_CODE","COORD_X","COORD_Y"
-];
-const GAON_REQUIRED={OTHER_COMPANY_STORE_CODE:"고객사점포코드",STORE_CODE:"실배송점포코드",STORE_NAME:"점포명",INPUT_ADDR:"입력주소",MARKET_CODE:"화주코드",BUSINESS_FLAG:"매출처코드",AREA_CODE:"지역코드",TURN_NUMBER:"편번호",WAREHOUSE_CODE:"창고코드",DELIVERY_REGION_CODE:"배송지구코드"};
-const GR_STATUS={ok:["등록 가능","#15803d"],dup:["중복","#b91c1c"],addr:["주소 오류","#b91c1c"],done:["등록 완료","#15803d"],miss:["확인 안 됨","#b91c1c"]};
-let grRows=[];
-function htmlEsc(v){ return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function gaonRowsFromExport(){
-  return buildExportRows().map(arr=>{ const o={}; GAON_COLUMN_IDS.forEach((id,i)=>{ if(arr[i]!=null)o[id]=arr[i]; }); return o; });
+// ---- 가온 Import용 복사 (가온 화면의 점포등록_Import 북마클릿이 읽는다. 저장은 가온 화면에서) ----
+function copyText(text){
+  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
+  ta.remove(); return ok;
 }
-function checkGaonRows(rows){
-  const errs=[], seen=new Set();
-  rows.forEach((r,i)=>{
-    const miss=Object.keys(GAON_REQUIRED).filter(k=>!r[k]).map(k=>GAON_REQUIRED[k]);
-    if(miss.length)errs.push((i+1)+"행: "+miss.join(", ")+" 없음");
-    if(r.STORE_CODE){ if(seen.has(r.STORE_CODE))errs.push((i+1)+"행: 실배송점포코드 "+r.STORE_CODE+" 중복"); seen.add(r.STORE_CODE); }
-  });
-  return errs;
-}
-function renderGr(){
-  $("grTable").querySelector("thead").innerHTML='<tr>'+["상태","고객사코드","실배송코드","점포명","입력주소","정제주소","우편번호","비고"].map(c=>'<th style="padding:4px 6px;white-space:nowrap;">'+c+'</th>').join("")+'</tr>';
-  $("grTable").querySelector("tbody").innerHTML=grRows.map(x=>{
-    const r=x.row, st=GR_STATUS[x.status]||[x.status,"inherit"];
-    return '<tr><td style="padding:3px 6px;white-space:nowrap;font-weight:700;color:'+st[1]+';">'+st[0]+'</td>'
-      +[r.OTHER_COMPANY_STORE_CODE,r.STORE_CODE,r.STORE_NAME,r.INPUT_ADDR,r.ADDRPART1,r.ZIPNO,x.note].map(v=>'<td style="padding:3px 6px;border:1px solid var(--line);">'+htmlEsc(v)+'</td>').join("")+'</tr>';
-  }).join("");
-  const n=grRows.filter(x=>x.status==="ok").length;
-  $("grSubmit").style.display=n?"":"none";
-  $("grSubmit").textContent="정상 "+n+"건 가온에 등록";
-}
-async function gaonStoreApi(action,body){
-  const cred=loadCred();
-  const resp=await fetch("/api/gaon/store/"+action,{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(Object.assign({id:cred.id,pw:cred.pw,ip:cred.ip},body))});
-  const text=await resp.text();
-  try{ return JSON.parse(text); }catch(e){ throw new Error("서버 응답 오류 (HTTP "+resp.status+")"); }
-}
-function gaonMarket(){ const s=curShipper(); return String(s.가온시장코드||s.화주코드||"").trim(); }
-$("btnGaonReg").onclick=async ()=>{
-  const cred=loadCred();
-  if(!cred.id||!cred.pw){ alert("먼저 [🔑 가온 계정]에서 아이디/비밀번호를 저장하세요."); $("btnGaonCred").click(); return; }
-  const rows=gaonRowsFromExport();
-  if(!rows.length){ alert("등록할 데이터가 없습니다."); return; }
-  const errs=checkGaonRows(rows);
-  if(errs.length){ alert("입력을 먼저 확인하세요.\n\n"+errs.slice(0,20).join("\n")+(errs.length>20?"\n… 외 "+(errs.length-20)+"건":"")); return; }
-  if(!gaonMarket()){ alert("현재 화주사의 '가온 시장코드'가 없습니다."); return; }
-  const btn=$("btnGaonReg"); btn.disabled=true; status("가온 점검 중 (중복 확인·주소 정제)...");
-  let r;
-  try{ r=await gaonStoreApi("prepare",{marketCode:gaonMarket(),rows}); }
-  catch(e){ alert("가온 중계 서버 호출 실패: "+e.message); return; }
-  finally{ btn.disabled=false; status(""); }
-  if(!r.ok){ alert("가온 점검 실패: "+(r.error||"알 수 없는 오류")); return; }
-  grRows=r.rows;
-  const n=grRows.filter(x=>x.status==="ok").length;
-  $("grInfo").textContent=CFG.selected+" · 총 "+grRows.length+"건";
-  $("grMsg").textContent=!n?"등록할 수 있는 건이 없습니다. 비고를 확인하세요.":n===grRows.length?"아래 내용으로 등록합니다. 아직 가온에 저장되지 않았습니다."
-    :"문제 있는 "+(grRows.length-n)+"건은 제외하고 등록합니다. 아직 가온에 저장되지 않았습니다.";
-  renderGr();
-  $("grOverlay").style.display="flex";
-};
-$("grCancel").onclick=()=>{ $("grOverlay").style.display="none"; };
-$("grSubmit").onclick=async ()=>{
-  const targets=grRows.filter(x=>x.status==="ok");
-  if(!targets.length)return;
-  if(!confirm(CFG.selected+" 점포 "+targets.length+"건을 가온에 등록합니다.\n운영 전산에 바로 저장됩니다. 진행할까요?"))return;
-  const btn=$("grSubmit"), cancel=$("grCancel"); btn.disabled=true; cancel.disabled=true; $("grMsg").textContent="등록 중입니다. 창을 닫지 마세요...";
-  const codes=targets.map(x=>x.row.STORE_CODE);
-  let regErr="";
-  try{ const reg=await gaonStoreApi("register",{rows:targets.map(x=>x.row)}); if(!reg.ok)regErr=reg.error||"알 수 없는 오류"; }
-  catch(e){ regErr=e.message; }
-  // 응답이 끊겨도 저장됐을 수 있으므로 성공/실패와 무관하게 실제 목록으로 확인한다
-  $("grMsg").textContent="등록 결과를 가온 점포목록에서 확인하는 중...";
-  let v=null;
-  try{ v=await gaonStoreApi("verify",{marketCode:gaonMarket(),codes}); if(!v.ok)v=null; }catch(e){ v=null; }
-  btn.disabled=false; cancel.disabled=false;
-  if(v){
-    const found=new Set(v.found);
-    targets.forEach(x=>{ if(found.has(x.row.STORE_CODE)){ x.status="done"; x.note=""; } else { x.status="miss"; x.note=regErr||"가온 점포목록에 없음"; } });
-    renderGr();
-    $("grMsg").textContent="등록 확인 "+v.found.length+" / "+codes.length+"건"+(regErr?" · 가온 응답: "+regErr:"");
-    status("가온 등록 확인 "+v.found.length+"/"+codes.length+"건");
-  }else{
-    targets.forEach(x=>{ x.status="miss"; x.note="등록 여부 확인 실패"; });
-    renderGr();
-    $("grMsg").textContent="등록 여부를 확인하지 못했습니다. 다시 시도하기 전에 가온 화면에서 점포코드를 확인하세요."+(regErr?" (가온 응답: "+regErr+")":"");
-  }
+$("btnGaonCopy").onclick=()=>{
+  const out=buildExportRows();
+  if(!out.length){ alert("복사할 데이터가 없습니다."); return; }
+  const bytes=writeXlsx(ALL_COLUMNS,out);
+  let bin=""; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  if(!copyText("HANEX_STORE_IMPORT\n"+storeFileName(out.length)+"\n"+btoa(bin))){ alert("복사에 실패했습니다. 엑셀 생성 후 가온에서 직접 올려 주세요."); return; }
+  status(out.length+"건 복사됨 · 가온 점포등록 화면에서 북마클릿을 실행하세요");
 };
 
 // ---- 화주사 모달 ----
