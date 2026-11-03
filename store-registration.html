@@ -108,7 +108,6 @@
       <span class="status ok" id="status"></span>
       <button class="ghost" id="btnPreview">👁 결과 미리보기</button>
       <button class="ok" id="btnGen">📥 엑셀 생성 (.xlsx)</button>
-      <button class="primary" id="btnGaonCopy">📋 가온 Import용 복사</button>
     </span>
   </div>
 
@@ -676,35 +675,16 @@ $("btnPreview").onclick=()=>{
 $("pvCancel").onclick=()=>$("pvOverlay").style.display="none";
 
 // ---- 엑셀 생성 ----
-function storeFileName(n){
-  const d=new Date(),p=x=>String(x).padStart(2,"0");
-  return "점포등록_"+CFG.selected+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+n+"건.xlsx";
-}
 $("btnGen").onclick=()=>{
   const out=buildExportRows();
   if(!out.length){ alert("생성할 데이터가 없습니다."); return; }
   const bytes=writeXlsx(ALL_COLUMNS,out);
   const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const fname=storeFileName(out.length);
+  const d=new Date(),p=n=>String(n).padStart(2,"0");
+  const fname="점포등록_"+CFG.selected+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+out.length+"건.xlsx";
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
   status("생성 완료 ("+out.length+"건)");
-};
-
-// ---- 가온 Import용 복사 (가온 화면의 점포등록_Import 북마클릿이 읽는다. 저장은 가온 화면에서) ----
-function copyText(text){
-  const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
-  document.body.appendChild(ta); ta.select();
-  let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
-  ta.remove(); return ok;
-}
-$("btnGaonCopy").onclick=()=>{
-  const out=buildExportRows();
-  if(!out.length){ alert("복사할 데이터가 없습니다."); return; }
-  const bytes=writeXlsx(ALL_COLUMNS,out);
-  let bin=""; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
-  if(!copyText("HANEX_STORE_IMPORT\n"+storeFileName(out.length)+"\n"+btoa(bin))){ alert("복사에 실패했습니다. 엑셀 생성 후 가온에서 직접 올려 주세요."); return; }
-  status(out.length+"건 복사됨 · 가온 점포등록 화면에서 북마클릿을 실행하세요");
 };
 
 // ---- 화주사 모달 ----
