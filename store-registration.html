@@ -302,6 +302,9 @@ function normalizeAddress(a){ if(a==null)return ""; return String(a).trim().repl
 function normalizeSido(s){ s=(s==null?"":String(s)).trim(); if(s===""||s.toLowerCase()==="nan")return ""; s=s.replace(/[\s()]/g,""); return SIDO[s]||s; }
 function eumFromParen(a){ if(!a)return ""; const m=a.match(/\(([^)]+?(?:동|읍|면))\)/); return m?m[1].replace(/[\s()]/g,""):""; }
 function eumFromTokens(tokens){ for(const t of tokens){ const t2=t.replace(/[()]/g,""); if(/(?:동|읍|면)$/.test(t2))return t2.replace(/\s+/g,""); } return ""; }
+// 통합 주소는 매핑파일의 옛 시도로 되돌린다 (광주 5개 구 → 광주광역시, 그 외 → 전라남도)
+const JEONNAM_GWANGJU=new Set(["전남광주통합특별시","전남광주특별시","전남광주"]);
+const GWANGJU_GU=new Set(["동구","서구","남구","북구","광산구"]);
 function splitAddress(addr){
   const s=normalizeAddress(addr); if(!s)return ["","",""];
   const t=s.split(" ");
@@ -310,6 +313,7 @@ function splitAddress(addr){
   if(t.length>=3 && t[1].endsWith("시") && (t[2].endsWith("구")||t[2].endsWith("군"))){ sigungu=t[1]+" "+t[2]; start=3; }
   else { sigungu=t.length>=2?t[1]:""; start=2; }
   const eup = eumFromParen(s) || eumFromTokens(t.slice(start)) || eumFromTokens(t);
+  if(JEONNAM_GWANGJU.has(sido)) return [GWANGJU_GU.has(sigungu.trim())?"광주광역시":"전라남도", sigungu.trim(), eup];
   return [sido, sigungu.trim(), eup];
 }
 function norm(s){ return String(s==null?"":s).replace(/\s/g,"").toLowerCase(); }
